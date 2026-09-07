@@ -27,9 +27,9 @@ type AuthService struct {
 // LoginResult 是登录成功后返回的令牌和用户信息。
 type LoginResult struct {
 	// Token 是客户端后续请求使用的 Bearer Access Token。
-	Token string `json:"token"`
-	// User 是脱敏后的当前用户信息。
-	User model.PublicUser `json:"user"`
+	Token string
+	// User 是服务层使用的持久化用户实体，Handler 必须先转换为 DTO 后才能作为接口响应。
+	User model.User
 }
 
 // NewAuthService 创建认证服务，并注入其外部依赖。
@@ -38,25 +38,25 @@ func NewAuthService(users repository.UserRepository, hasher security.PasswordHas
 }
 
 // Register 校验并创建普通用户，任何客户端都不能通过此接口创建管理员。
-func (s *AuthService) Register(ctx context.Context, username, password string) (model.PublicUser, error) {
+func (s *AuthService) Register(ctx context.Context, username, password string) (model.User, error) {
 	if err := validateUsername(username); err != nil {
-		return model.PublicUser{}, err
+		return model.User{}, err
 	}
 	if err := validatePassword(password); err != nil {
-		return model.PublicUser{}, err
+		return model.User{}, err
 	}
 	hash, err := s.hasher.Hash(password)
 	if err != nil {
-		return model.PublicUser{}, response.NewError(500, response.CodeInternal, "internal server error", err)
+		return model.User{}, response.NewError(500, response.CodeInternal, "internal server error", err)
 	}
 	user := model.User{Username: strings.TrimSpace(username), PasswordHash: hash, Role: model.RoleUser, Status: model.StatusActive}
 	if err := s.users.Create(ctx, &user); err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
-			return model.PublicUser{}, response.NewError(409, response.CodeConflict, "username already exists", err)
+			return model.User{}, response.NewError(409, response.CodeConflict, "username already exists", err)
 		}
-		return model.PublicUser{}, response.NewError(500, response.CodeInternal, "internal server error", err)
+		return model.User{}, response.NewError(500, response.CodeInternal, "internal server error", err)
 	}
-	return user.Public(), nil
+	return user, nil
 }
 
 // Login 校验用户名密码和用户状态，成功后签发 JWT。
@@ -73,16 +73,16 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 	if err != nil {
 		return LoginResult{}, response.NewError(500, response.CodeInternal, "internal server error", err)
 	}
-	return LoginResult{Token: token, User: user.Public()}, nil
+	return LoginResult{Token: token, User: user}, nil
 }
 
 // CurrentUser 根据 JWT 中的用户 ID 查询最新用户状态，避免仅信任令牌快照。
-func (s *AuthService) CurrentUser(ctx context.Context, userID uint64) (model.PublicUser, error) {
+func (s *AuthService) CurrentUser(ctx context.Context, userID uint64) (model.User, error) {
 	user, err := s.users.FindByID(ctx, userID)
 	if err != nil || user.Status != model.StatusActive {
-		return model.PublicUser{}, response.NewError(404, response.CodeAuthFailed, "user not found", nil)
+		return model.User{}, response.NewError(404, response.CodeAuthFailed, "user not found", nil)
 	}
-	return user.Public(), nil
+	return user, nil
 }
 
 // usernamePattern 限制用户名只使用 ASCII 字母、数字和下划线。

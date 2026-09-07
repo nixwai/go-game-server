@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	auth "github.com/nixwai/go-game-server/app/dto/auth"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/security"
@@ -17,22 +18,12 @@ type AuthHandler struct {
 	service *service.AuthService
 }
 
-// authRequest 是注册和登录共用的请求体。
-type authRequest struct {
-	// Username 是用户登录名。
-	Username string `json:"username"`
-	// Password 是用户明文密码，仅在请求处理期间使用。
-	Password string `json:"password"`
-	// Role 仅用于识别并拒绝客户端尝试创建管理员。
-	Role string `json:"role"`
-}
-
 // NewAuthHandler 创建认证 HTTP 处理器。
 func NewAuthHandler(s *service.AuthService) *AuthHandler { return &AuthHandler{service: s} }
 
 // Register 处理普通用户注册请求。
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req authRequest
+	var req auth.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteError(c, response.NewError(400, response.CodeValidation, "invalid request body", err))
 		return
@@ -47,12 +38,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusCreated, response.CodeOK, "success", user)
+	response.Write(c, http.StatusCreated, response.CodeOK, "success", auth.NewUserResponse(user))
 }
 
 // Login 处理用户名密码登录请求，并返回 JWT。
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req authRequest
+	var req auth.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteError(c, response.NewError(400, response.CodeValidation, "invalid request body", err))
 		return
@@ -62,7 +53,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusOK, response.CodeOK, "success", result)
+	response.Write(c, http.StatusOK, response.CodeOK, "success", auth.NewLoginResponse(result.Token, result.User))
 }
 
 // Me 返回当前登录用户的最新信息。
@@ -78,7 +69,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusOK, response.CodeOK, "success", user)
+	response.Write(c, http.StatusOK, response.CodeOK, "success", auth.NewUserResponse(user))
 }
 
 // AdminPing 是仅用于验证管理员权限中间件的示例接口。

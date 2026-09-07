@@ -1,0 +1,23 @@
+package auth_test
+
+import (
+	auth "github.com/nixwai/go-game-server/app/dto/auth"
+	"github.com/nixwai/go-game-server/app/model"
+	"testing"
+)
+
+func TestNewUserResponseDoesNotExposePasswordHash(t *testing.T) {
+	user := model.User{ID: 1, Username: "alice", PasswordHash: "secret-hash", Role: model.RoleUser, Status: model.StatusActive}
+	got := auth.NewUserResponse(user)
+	if got.ID != user.ID || got.Username != user.Username || got.Role != user.Role || got.Status != user.Status {
+		t.Fatalf("unexpected user response: %+v", got)
+	}
+}
+
+func TestNewLoginResponseMapsTokenAndUser(t *testing.T) {
+	user := model.User{ID: 1, Username: "alice", PasswordHash: "secret-hash", Role: model.RoleUser, Status: model.StatusActive}
+	got := auth.NewLoginResponse("token", user)
+	if got.Token != "token" || got.User.Username != user.Username || got.User.Role != user.Role {
+		t.Fatalf("unexpected login response: %+v", got)
+	}
+}

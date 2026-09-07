@@ -18,7 +18,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AuthRequest' }
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
       responses:
         '201': { description: Created }
         '400': { description: Validation error }
@@ -30,7 +30,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AuthRequest' }
+            schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
         '200': { description: OK }
         '401': { description: Invalid credentials }
@@ -56,10 +56,31 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
-    AuthRequest:
+    RegisterRequest:
       type: object
       required: [username, password]
       properties:
         username: { type: string, minLength: 3, maxLength: 64 }
         password: { type: string, minLength: 8, maxLength: 128, format: password }
         role: { type: string, enum: [user] }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 8, maxLength: 128, format: password }
+    UserResponse:
+      type: object
+      required: [id, username, role, status, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        role: { type: string, enum: [admin, user] }
+        status: { type: string, enum: [active, disabled] }
+        created_at: { type: string, format: date-time }
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user: { $ref: '#/components/schemas/UserResponse' }

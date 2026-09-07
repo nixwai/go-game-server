@@ -30,7 +30,8 @@ app/
   database/     数据库连接
   handler/      HTTP Handler
   middleware/   请求 ID、JWT、角色权限中间件
-  model/        数据模型和领域常量
+  model/        持久化模型和领域常量
+  dto/          按业务域划分的接口请求与响应 DTO
   repository/   数据访问抽象与 GORM 实现
   response/     统一响应、业务码、错误处理
   router/       路由注册
@@ -38,7 +39,7 @@ app/
   service/      认证业务逻辑
 migrations/     版本化 SQL 迁移
 docs/           OpenAPI 文档
-tests/          按 config、response、security、service、router 划分的测试与集成测试
+tests/          按 config、dto、response、security、service、router 划分的测试与集成测试
 docker-compose.yml
 .env.example
 AGENTS.md
@@ -144,7 +145,11 @@ go run ./cmd/admin-init
 - Service 负责业务规则，不直接依赖 Gin；
 - Repository 负责数据库访问，不承载业务判断；
 - Security 只提供密码和令牌能力；
-- Model 只定义数据结构和领域常量；
+- Model 只定义持久化结构和领域常量，不直接作为 HTTP 响应；
+- DTO 负责接口请求和响应结构，按业务域放在 `app/dto` 下；
+- Handler 负责将 Service 返回的 Model 映射为响应 DTO；
+- Service 返回业务实体或服务结果，不包含 JSON 标签和 HTTP 协议结构；
+- 禁止直接将 `model.User` 序列化为接口响应，避免泄露 `PasswordHash`；
 - 公共响应和错误码统一复用 `app/response`；
 - 新增数据库实体时必须提供 Repository 接口和实现；
 - 不复制粘贴认证、权限和错误响应逻辑；
@@ -186,7 +191,7 @@ go test ./...
 go test -cover ./...
 ```
 
-目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/config`、`tests/response`、`tests/security`、`tests/service`、`tests/router`；涉及数据库行为的集成测试放在 `tests` 根目录并使用 `mysql-test` 容器，不得依赖开发数据库。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
+目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/config`、`tests/dto`、`tests/response`、`tests/security`、`tests/service`、`tests/router`；涉及数据库行为的集成测试放在 `tests` 根目录并使用 `mysql-test` 容器，不得依赖开发数据库。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
 
 ## 12. 新功能开发流程
 
@@ -213,6 +218,8 @@ go test -cover ./...
 - 业务领域模块。
 
 扩展这些能力时，必须先补充接口契约、数据迁移、安全模型和测试，再修改实现。
+
+
 
 
 
