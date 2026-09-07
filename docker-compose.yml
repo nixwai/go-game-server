@@ -1,0 +1,38 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: go_game
+      MYSQL_USER: go_game
+      MYSQL_PASSWORD: go_game
+      MYSQL_ROOT_PASSWORD: local-root-password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "go_game", "-pgo_game"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mysql-test:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: go_game_test
+      MYSQL_USER: go_game_test
+      MYSQL_PASSWORD: go_game_test
+      MYSQL_ROOT_PASSWORD: test-root-password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "go_game_test", "-pgo_game_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql_data:
+  mysql_test_data:

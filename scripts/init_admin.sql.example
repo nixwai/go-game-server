@@ -1,0 +1,11 @@
+-- 管理员初始化 SQL 模板。
+-- 推荐使用 go run ./cmd/admin-init 生成 Argon2id 哈希并写入数据库。
+-- 如果必须使用 SQL，请先将下面两个变量替换为部署环境中的值，禁止提交替换后的文件。
+SET @admin_username = 'replace-with-admin-username';
+SET @admin_password_hash = 'replace-with-argon2id-phc-hash';
+
+INSERT INTO users (username, password_hash, role, status)
+SELECT @admin_username, @admin_password_hash, 'admin', 'active'
+WHERE NOT EXISTS (
+    SELECT 1 FROM users WHERE username = @admin_username
+);

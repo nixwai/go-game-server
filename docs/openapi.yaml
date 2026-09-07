@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: Go Game Server Auth API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /api/v1/auth/register:
+    post:
+      summary: Register a normal user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+      responses:
+        '201': { description: Created }
+        '400': { description: Validation error }
+        '409': { description: Username conflict }
+  /api/v1/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+      responses:
+        '200': { description: OK }
+        '401': { description: Invalid credentials }
+  /api/v1/auth/me:
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: Get current user
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+  /api/v1/admin/ping:
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: Admin-only endpoint
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 8, maxLength: 128, format: password }
+        role: { type: string, enum: [user] }
