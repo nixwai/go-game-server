@@ -22,7 +22,7 @@ func NewAuthHandler(s *service.AuthService) *AuthHandler { return &AuthHandler{s
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req auth.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(response.CodeValidation, "invalid request body", err))
+		response.WriteError(c, response.NewError(response.CodeValidation, "请求参数无效", err))
 		return
 	}
 	user, err := h.service.Register(c.Request.Context(), req.Username, req.Password)
@@ -30,14 +30,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, response.CodeOK, "success", auth.NewUserResponse(user))
+	response.Write(c, response.CodeOK, "成功", auth.NewUserResponse(user))
 }
 
 // Login 处理用户名密码登录请求，并返回 JWT。
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req auth.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(response.CodeValidation, "invalid request body", err))
+		response.WriteError(c, response.NewError(response.CodeValidation, "请求参数无效", err))
 		return
 	}
 	result, err := h.service.Login(c.Request.Context(), req.Username, req.Password)
@@ -45,7 +45,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, response.CodeOK, "success", auth.NewLoginResponse(result.Token, result.User))
+	response.Write(c, response.CodeOK, "成功", auth.NewLoginResponse(result.Token, result.User))
 }
 
 // Me 返回当前登录用户的最新信息。
@@ -53,7 +53,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	claimsValue, exists := c.Get("claims")
 	claims, ok := claimsValue.(*security.Claims)
 	if !exists || !ok {
-		response.WriteError(c, response.NewError(response.CodeTokenInvalid, "invalid token", nil))
+		response.WriteError(c, response.NewError(response.CodeTokenInvalid, "令牌无效", nil))
 		return
 	}
 	user, err := h.service.CurrentUser(c.Request.Context(), claims.UserID)
@@ -61,10 +61,10 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, response.CodeOK, "success", auth.NewUserResponse(user))
+	response.Write(c, response.CodeOK, "成功", auth.NewUserResponse(user))
 }
 
 // AdminPing 是仅用于验证管理员权限中间件的示例接口。
 func (h *AuthHandler) AdminPing(c *gin.Context) {
-	response.Write(c, response.CodeOK, "success", gin.H{"message": "admin access granted"})
+	response.Write(c, response.CodeOK, "成功", gin.H{"message": "管理员权限验证通过"})
 }

@@ -16,14 +16,14 @@ func AuthRequired(tokens *security.TokenManager) gin.HandlerFunc {
 		header := c.GetHeader("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(header, prefix) {
-			response.WriteError(c, response.NewError(response.CodeTokenInvalid, "authentication required", nil))
+			response.WriteError(c, response.NewError(response.CodeTokenInvalid, "需要认证", nil))
 			c.Abort()
 			return
 		}
 		// 去除 Bearer 前缀和多余空格后再解析，解析失败时不暴露底层 JWT 错误。
 		claims, err := tokens.Parse(strings.TrimSpace(strings.TrimPrefix(header, prefix)))
 		if err != nil {
-			response.WriteError(c, response.NewError(response.CodeTokenInvalid, "invalid token", nil))
+			response.WriteError(c, response.NewError(response.CodeTokenInvalid, "令牌无效", nil))
 			c.Abort()
 			return
 		}
@@ -38,7 +38,7 @@ func AdminOnly() gin.HandlerFunc {
 		claimsValue, exists := c.Get("claims")
 		claims, ok := claimsValue.(*security.Claims)
 		if !exists || !ok || claims.Role != model.RoleAdmin {
-			response.WriteError(c, response.NewError(response.CodeForbidden, "forbidden", nil))
+			response.WriteError(c, response.NewError(response.CodeForbidden, "权限不足", nil))
 			c.Abort()
 			return
 		}

@@ -76,5 +76,5 @@ func WriteError(c *gin.Context, err error) {
 		Write(c, appErr.Code, appErr.Message, nil)
 		return
 	}
-	Write(c, CodeInternal, "internal server error", nil)
+	Write(c, CodeInternal, "服务器内部错误", nil)
 }

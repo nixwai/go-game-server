@@ -47,14 +47,14 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 	}
 	hash, err := s.hasher.Hash(password)
 	if err != nil {
-		return model.User{}, response.NewError(response.CodeInternal, "internal server error", err)
+		return model.User{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
 	user := model.User{Username: strings.TrimSpace(username), PasswordHash: hash, Role: model.RoleUser, Status: model.StatusActive}
 	if err := s.users.Create(ctx, &user); err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
-			return model.User{}, response.NewError(response.CodeConflict, "username already exists", err)
+			return model.User{}, response.NewError(response.CodeConflict, "用户名已存在", err)
 		}
-		return model.User{}, response.NewError(response.CodeInternal, "internal server error", err)
+		return model.User{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
 	return user, nil
 }
@@ -67,11 +67,11 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 	user, err := s.users.FindByUsername(ctx, strings.TrimSpace(username))
 	// 统一处理用户不存在、密码错误和禁用状态，避免泄露账号是否存在。
 	if err != nil || user.Status != model.StatusActive || !s.hasher.Compare(password, user.PasswordHash) {
-		return LoginResult{}, response.NewError(response.CodeAuthFailed, "invalid username or password", nil)
+		return LoginResult{}, response.NewError(response.CodeAuthFailed, "用户名或密码错误", nil)
 	}
 	token, err := s.tokens.Generate(user)
 	if err != nil {
-		return LoginResult{}, response.NewError(response.CodeInternal, "internal server error", err)
+		return LoginResult{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
 	return LoginResult{Token: token, User: user}, nil
 }
@@ -80,7 +80,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 func (s *AuthService) CurrentUser(ctx context.Context, userID uint64) (model.User, error) {
 	user, err := s.users.FindByID(ctx, userID)
 	if err != nil || user.Status != model.StatusActive {
-		return model.User{}, response.NewError(response.CodeNotFound, "user not found", nil)
+		return model.User{}, response.NewError(response.CodeNotFound, "用户不存在", nil)
 	}
 	return user, nil
 }
@@ -92,7 +92,7 @@ var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 func validateUsername(username string) error {
 	username = strings.TrimSpace(username)
 	if len(username) < 3 || len(username) > 64 || !usernamePattern.MatchString(username) {
-		return response.NewError(response.CodeValidation, "invalid username", nil)
+		return response.NewError(response.CodeValidation, "用户名格式无效", nil)
 	}
 	return nil
 }
@@ -100,7 +100,7 @@ func validateUsername(username string) error {
 // validatePassword 校验密码长度，并要求同时包含字母和数字。
 func validatePassword(password string) error {
 	if len(password) < 8 || len(password) > 128 {
-		return response.NewError(response.CodeValidation, "invalid password", nil)
+		return response.NewError(response.CodeValidation, "密码格式无效", nil)
 	}
 	var letter, digit bool
 	for _, r := range password {
@@ -108,7 +108,7 @@ func validatePassword(password string) error {
 		digit = digit || unicode.IsDigit(r)
 	}
 	if !letter || !digit {
-		return response.NewError(response.CodeValidation, "invalid password", nil)
+		return response.NewError(response.CodeValidation, "密码格式无效", nil)
 	}
 	return nil
 }

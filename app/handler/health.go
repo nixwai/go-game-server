@@ -8,5 +8,5 @@ import (
 
 // Health 返回服务存活状态，不需要身份认证。
 func Health(c *gin.Context) {
-	response.Write(c, response.CodeOK, "success", gin.H{"status": "ok"})
+	response.Write(c, response.CodeOK, "成功", gin.H{"status": "ok"})
 }

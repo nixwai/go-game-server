@@ -11,7 +11,7 @@ import (
 // 禁用 CreateClause 外键约束生成，确保表间关联关系由应用层维护。
 func OpenMySQL(dsn string) (*gorm.DB, error) {
 	return gorm.Open(mysql.Open(dsn), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true},
+		NamingStrategy:                           schema.NamingStrategy{SingularTable: true},
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 }

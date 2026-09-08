@@ -51,9 +51,9 @@ paths:
                 $ref: '#/components/schemas/ApiResponse'
               example:
                 code: 0
-                message: success
+                message: 成功
                 data:
-                  status: ok
+                  status: 正常
                 request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/register:
     post:
@@ -87,7 +87,7 @@ paths:
                   summary: 注册成功
                   value:
                     code: 0
-                    message: success
+                    message: 成功
                     data:
                       id: 1
                       username: alice
@@ -99,14 +99,14 @@ paths:
                   summary: 参数校验失败
                   value:
                     code: 1001
-                    message: invalid username
+                    message: 用户名格式无效
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 conflict:
                   summary: 用户名已存在
                   value:
                     code: 4001
-                    message: username already exists
+                    message: 用户名已存在
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/login:
@@ -117,7 +117,7 @@ paths:
         使用用户名和密码登录，成功后返回 JWT 令牌和用户信息。
 
         **安全约束：**
-        - 登录失败统一返回 `invalid username or password`，不暴露用户是否存在。
+        - 登录失败统一返回 `用户名或密码错误`，不暴露用户是否存在。
         - 被禁用（disabled）的用户无法登录，错误信息与密码错误一致。
       operationId: login
       requestBody:
@@ -141,7 +141,7 @@ paths:
                   summary: 登录成功
                   value:
                     code: 0
-                    message: success
+                    message: 成功
                     data:
                       token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjEsInVzZXJuYW1lIjoiYWxpY2UiLCJyb2xlIjoidXNlciIsImlzcyI6ImdvLWdhbWUtc2VydmVyIiwic3ViIjoiMSIsImV4cCI6MTczMzQ1NjAwMCwiaWF0IjoxNzMzMzcwNDAwLCJuYmYiOjE3MzMzNzA0MDAsImp0aSI6IjU1MGU4NDAwLWUyOWItNDFkNC1hNzE2LTQ0NjY1NTQ0MDAwMCJ9.signature
                       user:
@@ -155,14 +155,14 @@ paths:
                   summary: 用户名或密码错误
                   value:
                     code: 2001
-                    message: invalid username or password
+                    message: 用户名格式无效 or password
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 validationError:
                   summary: 参数校验失败
                   value:
                     code: 1001
-                    message: invalid username
+                    message: 用户名格式无效
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/me:
@@ -189,7 +189,7 @@ paths:
                   summary: 获取成功
                   value:
                     code: 0
-                    message: success
+                    message: 成功
                     data:
                       id: 1
                       username: alice
@@ -201,14 +201,14 @@ paths:
                   summary: 未携带令牌
                   value:
                     code: 2002
-                    message: authentication required
+                    message: 需要认证
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenInvalid:
                   summary: 令牌无效或过期
                   value:
                     code: 2002
-                    message: invalid token
+                    message: 令牌无效
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 userNotFound:
@@ -241,29 +241,29 @@ paths:
                   summary: 管理员权限通过
                   value:
                     code: 0
-                    message: success
+                    message: 成功
                     data:
-                      message: admin access granted
+                      message: 管理员权限验证通过
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenMissing:
                   summary: 未携带令牌
                   value:
                     code: 2002
-                    message: authentication required
+                    message: 需要认证
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenInvalid:
                   summary: 令牌无效或过期
                   value:
                     code: 2002
-                    message: invalid token
+                    message: 令牌无效
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 forbidden:
                   summary: 普通用户无权访问
                   value:
                     code: 3001
-                    message: forbidden
+                    message: 权限不足
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
 components:
