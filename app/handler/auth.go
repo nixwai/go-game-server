@@ -76,8 +76,3 @@ func (h *AuthHandler) Me(c *gin.Context) {
 func (h *AuthHandler) AdminPing(c *gin.Context) {
 	response.Write(c, http.StatusOK, response.CodeOK, "success", gin.H{"message": "admin access granted"})
 }
-
-// Health 返回服务存活状态，不需要身份认证。
-func Health(c *gin.Context) {
-	response.Write(c, http.StatusOK, response.CodeOK, "success", gin.H{"status": "ok"})
-}

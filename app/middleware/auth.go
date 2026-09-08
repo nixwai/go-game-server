@@ -1,4 +1,4 @@
-// Package middleware 提供请求追踪、JWT 鉴权和角色权限中间件。
+// Package middleware 提供 JWT 鉴权和角色权限中间件。
 package middleware
 
 import (
@@ -6,24 +6,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/security"
 )
-
-// RequestID 为每个请求生成或沿用请求追踪 ID，并回写响应头。
-func RequestID() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.GetHeader("X-Request-ID")
-		if id == "" {
-			id = uuid.NewString()
-		}
-		c.Set("request_id", id)
-		c.Header("X-Request-ID", id)
-		c.Next()
-	}
-}
 
 // AuthRequired 校验 Authorization Bearer JWT，并将 Claims 注入 Gin 上下文。
 func AuthRequired(tokens *security.TokenManager) gin.HandlerFunc {
