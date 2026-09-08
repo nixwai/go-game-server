@@ -42,6 +42,9 @@ func LoadForAdmin() (Config, error) { return load(false) }
 
 // load 根据 requireJWT 决定是否校验 JWT 配置，避免迁移和初始化命令依赖无关密钥。
 func load(requireJWT bool) (Config, error) {
+	if err := LoadDotEnv(); err != nil {
+		return Config{}, err
+	}
 	// 逐项解析配置，任何一个配置格式错误都立即终止启动。
 	expiresIn, err := durationEnv("JWT_EXPIRES_IN", 2*time.Hour)
 	if err != nil {

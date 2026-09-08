@@ -36,5 +36,5 @@ func TestMySQLUserRepositoryIntegration(t *testing.T) {
 	if got.ID == 0 || got.Username != user.Username {
 		t.Fatalf("unexpected user: %+v", got)
 	}
-	db.Exec("DELETE FROM users WHERE username = ?", user.Username)
+	db.Exec("DELETE FROM user WHERE username = ?", user.Username)
 }

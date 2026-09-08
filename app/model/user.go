@@ -14,7 +14,7 @@ const (
 	StatusDisabled = "disabled"
 )
 
-// User 是 users 表对应的持久化实体。
+// User 是 user 表对应的持久化实体。
 // 该类型只描述数据库数据，不作为 HTTP 接口响应直接序列化。
 type User struct {
 	// ID 是用户的自增主键。

@@ -4,8 +4,8 @@
 SET @admin_username = 'replace-with-admin-username';
 SET @admin_password_hash = 'replace-with-argon2id-phc-hash';
 
-INSERT INTO users (username, password_hash, role, status)
+INSERT INTO user (username, password_hash, role, status)
 SELECT @admin_username, @admin_password_hash, 'admin', 'active'
 WHERE NOT EXISTS (
-    SELECT 1 FROM users WHERE username = @admin_username
+    SELECT 1 FROM user WHERE username = @admin_username
 );

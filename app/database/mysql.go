@@ -4,9 +4,12 @@ package database
 import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // OpenMySQL 根据 DSN 创建 GORM MySQL 连接。
 func OpenMySQL(dsn string) (*gorm.DB, error) {
-	return gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{SingularTable: true},
+	})
 }
