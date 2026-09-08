@@ -13,6 +13,7 @@ import (
 	"github.com/nixwai/go-game-server/app/handler"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/repository"
+	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/router"
 	"github.com/nixwai/go-game-server/app/security"
 	"github.com/nixwai/go-game-server/app/service"
@@ -64,25 +65,35 @@ func request(r http.Handler, method, path, body, token string) *httptest.Respons
 	r.ServeHTTP(w, req)
 	return w
 }
+
+// assertCode 从响应体解析业务码并断言。
+func assertCode(t *testing.T, w *httptest.ResponseRecorder, expectedCode int) {
+	t.Helper()
+	if w.Code != 200 {
+		t.Fatalf("expected HTTP 200, got %d", w.Code)
+	}
+	var body struct {
+		Code int `json:"code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != expectedCode {
+		t.Fatalf("expected code %d, got %d, body=%s", expectedCode, body.Code, w.Body.String())
+	}
+}
+
 func TestAuthRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r, tokens := newRouterForTest()
 	w := request(r, http.MethodGet, "/health", "", "")
-	if w.Code != 200 {
-		t.Fatalf("health status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeOK)
 	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123","role":"admin"}`, "")
-	if w.Code != 400 {
-		t.Fatalf("admin registration status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeValidation)
 	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123"}`, "")
-	if w.Code != 201 {
-		t.Fatalf("register status: %d body=%s", w.Code, w.Body.String())
-	}
+	assertCode(t, w, response.CodeOK)
 	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"SecurePass123"}`, "")
-	if w.Code != 200 {
-		t.Fatalf("login status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeOK)
 	var payload struct {
 		Data struct {
 			Token string `json:"token"`
@@ -95,19 +106,13 @@ func TestAuthRoutes(t *testing.T) {
 		t.Fatal("token missing")
 	}
 	w = request(r, http.MethodGet, "/api/v1/admin/ping", "", payload.Data.Token)
-	if w.Code != 403 {
-		t.Fatalf("user admin status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeForbidden)
 	adminToken, err := tokens.Generate(model.User{ID: 99, Username: "admin", Role: model.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
 	w = request(r, http.MethodGet, "/api/v1/admin/ping", "", adminToken)
-	if w.Code != 200 {
-		t.Fatalf("admin status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeOK)
 	w = request(r, http.MethodGet, "/api/v1/auth/me", "", "bad-token")
-	if w.Code != 401 {
-		t.Fatalf("bad token status: %d", w.Code)
-	}
+	assertCode(t, w, response.CodeTokenInvalid)
 }

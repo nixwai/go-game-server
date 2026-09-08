@@ -2,8 +2,6 @@
 package handler
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	auth "github.com/nixwai/go-game-server/app/dto/auth"
 	"github.com/nixwai/go-game-server/app/model"
@@ -25,12 +23,12 @@ func NewAuthHandler(s *service.AuthService) *AuthHandler { return &AuthHandler{s
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req auth.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(400, response.CodeValidation, "invalid request body", err))
+		response.WriteError(c, response.NewError(response.CodeValidation, "invalid request body", err))
 		return
 	}
 	// 注册接口永远由 Service 创建 user 角色；显式提交其他角色直接拒绝。
 	if req.Role != "" && req.Role != model.RoleUser {
-		response.WriteError(c, response.NewError(400, response.CodeValidation, "only user role can be registered", nil))
+		response.WriteError(c, response.NewError(response.CodeValidation, "only user role can be registered", nil))
 		return
 	}
 	user, err := h.service.Register(c.Request.Context(), req.Username, req.Password)
@@ -38,14 +36,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusCreated, response.CodeOK, "success", auth.NewUserResponse(user))
+	response.Write(c, response.CodeOK, "success", auth.NewUserResponse(user))
 }
 
 // Login 处理用户名密码登录请求，并返回 JWT。
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req auth.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(400, response.CodeValidation, "invalid request body", err))
+		response.WriteError(c, response.NewError(response.CodeValidation, "invalid request body", err))
 		return
 	}
 	result, err := h.service.Login(c.Request.Context(), req.Username, req.Password)
@@ -53,7 +51,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusOK, response.CodeOK, "success", auth.NewLoginResponse(result.Token, result.User))
+	response.Write(c, response.CodeOK, "success", auth.NewLoginResponse(result.Token, result.User))
 }
 
 // Me 返回当前登录用户的最新信息。
@@ -61,7 +59,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	claimsValue, exists := c.Get("claims")
 	claims, ok := claimsValue.(*security.Claims)
 	if !exists || !ok {
-		response.WriteError(c, response.NewError(401, response.CodeTokenInvalid, "invalid token", nil))
+		response.WriteError(c, response.NewError(response.CodeTokenInvalid, "invalid token", nil))
 		return
 	}
 	user, err := h.service.CurrentUser(c.Request.Context(), claims.UserID)
@@ -69,10 +67,10 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		response.WriteError(c, err)
 		return
 	}
-	response.Write(c, http.StatusOK, response.CodeOK, "success", auth.NewUserResponse(user))
+	response.Write(c, response.CodeOK, "success", auth.NewUserResponse(user))
 }
 
 // AdminPing 是仅用于验证管理员权限中间件的示例接口。
 func (h *AuthHandler) AdminPing(c *gin.Context) {
-	response.Write(c, http.StatusOK, response.CodeOK, "success", gin.H{"message": "admin access granted"})
+	response.Write(c, response.CodeOK, "success", gin.H{"message": "admin access granted"})
 }

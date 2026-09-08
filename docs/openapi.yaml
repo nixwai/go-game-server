@@ -20,9 +20,11 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/RegisterRequest' }
       responses:
-        '201': { description: Created }
-        '400': { description: Validation error }
-        '409': { description: Username conflict }
+        '200':
+          description: Success or validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
   /api/v1/auth/login:
     post:
       summary: Login
@@ -32,23 +34,31 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
-        '200': { description: OK }
-        '401': { description: Invalid credentials }
+        '200':
+          description: Success or authentication error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
   /api/v1/auth/me:
     get:
       security: [{ bearerAuth: [] }]
       summary: Get current user
       responses:
-        '200': { description: OK }
-        '401': { description: Unauthorized }
+        '200':
+          description: Success or token error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
   /api/v1/admin/ping:
     get:
       security: [{ bearerAuth: [] }]
       summary: Admin-only endpoint
       responses:
-        '200': { description: OK }
-        '401': { description: Unauthorized }
-        '403': { description: Forbidden }
+        '200':
+          description: Success, token error or forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
 components:
   securitySchemes:
     bearerAuth:
@@ -56,6 +66,14 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ApiResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer, description: '业务码，0 表示成功，非 0 表示具体错误' }
+        message: { type: string }
+        data: { type: object }
+        request_id: { type: string }
     RegisterRequest:
       type: object
       required: [username, password]

@@ -17,8 +17,8 @@ func TestWriteErrorHidesInternalError(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Set("request_id", "req-1")
-	response.WriteError(c, response.NewError(500, response.CodeInternal, "internal server error", assertErr{}))
-	if recorder.Code != 500 {
+	response.WriteError(c, response.NewError(response.CodeInternal, "internal server error", assertErr{}))
+	if recorder.Code != 200 {
 		t.Fatalf("status: %d", recorder.Code)
 	}
 	if recorder.Body.String() == "" || contains(recorder.Body.String(), "secret") {
