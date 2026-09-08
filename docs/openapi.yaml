@@ -2,103 +2,399 @@ openapi: 3.0.3
 info:
   title: Go Game Server Auth API
   version: 1.0.0
+  description: |
+    Go Game Server 认证后端接口文档。
+
+    ## 通用约定
+
+    - 所有接口统一返回 HTTP 200，前端通过响应体 `code` 字段判断业务结果。
+    - `code=0` 表示业务成功，非 0 表示具体错误类型。
+    - 需要认证的接口必须在请求头携带 `Authorization: Bearer <jwt>`。
+    - 每个请求可通过 `X-Request-ID` 请求头传入自定义追踪 ID，服务端会原样回写响应头。
+    - 服务端异常不会返回内部堆栈或敏感信息。
+
+    ## 业务码说明
+
+    | 业务码 | 含义 |
+    |--------|------|
+    | 0 | 成功 |
+    | 1001 | 参数校验失败 |
+    | 2001 | 用户名或密码错误 |
+    | 2002 | 令牌缺失、无效或已过期 |
+    | 3001 | 权限不足 |
+    | 4001 | 资源冲突（如用户名重复）|
+    | 4004 | 资源不存在 |
+    | 9000 | 服务器内部错误 |
 servers:
   - url: http://localhost:8080
+    description: 本地开发环境
+tags:
+  - name: health
+    description: 健康检查
+  - name: auth
+    description: 认证相关接口
+  - name: admin
+    description: 管理员接口
 paths:
   /health:
     get:
-      summary: Health check
+      tags: [health]
+      summary: 健康检查
+      description: 检查服务是否存活，不需要身份认证。
+      operationId: healthCheck
       responses:
         '200':
-          description: OK
+          description: 服务存活
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: success
+                data:
+                  status: ok
+                request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/register:
     post:
-      summary: Register a normal user
+      tags: [auth]
+      summary: 用户注册
+      description: |
+        注册普通用户。
+
+        **安全约束：**
+        - 注册接口只创建 `user` 角色账户，客户端无法通过此接口创建管理员。
+        - 如果请求体包含 `role` 字段且值不为 `user`，将返回参数校验错误。
+        - 密码以 Argon2id 哈希形式存储，明文不落库。
+      operationId: register
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/RegisterRequest' }
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              normal:
+                summary: 标准注册
+                value:
+                  username: alice
+                  password: Secret123
+              withRole:
+                summary: 显式指定 user 角色
+                value:
+                  username: bob
+                  password: MyPass456
+                  role: user
       responses:
         '200':
-          description: Success or validation error
+          description: 注册成功或失败（业务码区分）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 注册成功
+                  value:
+                    code: 0
+                    message: success
+                    data:
+                      id: 1
+                      username: alice
+                      role: user
+                      status: active
+                      created_at: "2026-09-08T12:00:00Z"
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                validationError:
+                  summary: 参数校验失败
+                  value:
+                    code: 1001
+                    message: invalid username
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                roleRejected:
+                  summary: 拒绝创建管理员
+                  value:
+                    code: 1001
+                    message: only user role can be registered
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                conflict:
+                  summary: 用户名已存在
+                  value:
+                    code: 4001
+                    message: username already exists
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/login:
     post:
-      summary: Login
+      tags: [auth]
+      summary: 用户登录
+      description: |
+        使用用户名和密码登录，成功后返回 JWT 令牌和用户信息。
+
+        **安全约束：**
+        - 登录失败统一返回 `invalid username or password`，不暴露用户是否存在。
+        - 被禁用（disabled）的用户无法登录，错误信息与密码错误一致。
+      operationId: login
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/LoginRequest' }
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: alice
+              password: Secret123
       responses:
         '200':
-          description: Success or authentication error
+          description: 登录成功或失败（业务码区分）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 登录成功
+                  value:
+                    code: 0
+                    message: success
+                    data:
+                      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjEsInVzZXJuYW1lIjoiYWxpY2UiLCJyb2xlIjoidXNlciIsImlzcyI6ImdvLWdhbWUtc2VydmVyIiwic3ViIjoiMSIsImV4cCI6MTczMzQ1NjAwMCwiaWF0IjoxNzMzMzcwNDAwLCJuYmYiOjE3MzMzNzA0MDAsImp0aSI6IjU1MGU4NDAwLWUyOWItNDFkNC1hNzE2LTQ0NjY1NTQ0MDAwMCJ9.signature
+                      user:
+                        id: 1
+                        username: alice
+                        role: user
+                        status: active
+                        created_at: "2026-09-08T12:00:00Z"
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                authFailed:
+                  summary: 用户名或密码错误
+                  value:
+                    code: 2001
+                    message: invalid username or password
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                validationError:
+                  summary: 参数校验失败
+                  value:
+                    code: 1001
+                    message: invalid username
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/me:
     get:
-      security: [{ bearerAuth: [] }]
-      summary: Get current user
+      tags: [auth]
+      summary: 获取当前用户信息
+      description: |
+        根据 JWT 中的用户 ID 查询最新的用户信息。
+
+        服务端会从数据库实时读取用户状态，而非仅依赖令牌快照。
+        如果用户已被禁用或不存在，将返回资源不存在错误。
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: Success or token error
+          description: 用户信息或认证错误（业务码区分）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 获取成功
+                  value:
+                    code: 0
+                    message: success
+                    data:
+                      id: 1
+                      username: alice
+                      role: user
+                      status: active
+                      created_at: "2026-09-08T12:00:00Z"
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                tokenMissing:
+                  summary: 未携带令牌
+                  value:
+                    code: 2002
+                    message: authentication required
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                tokenInvalid:
+                  summary: 令牌无效或过期
+                  value:
+                    code: 2002
+                    message: invalid token
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                userNotFound:
+                  summary: 用户不存在或已禁用
+                  value:
+                    code: 4004
+                    message: user not found
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/admin/ping:
     get:
-      security: [{ bearerAuth: [] }]
-      summary: Admin-only endpoint
+      tags: [admin]
+      summary: 管理员权限校验
+      description: |
+        仅用于验证管理员权限中间件是否正常工作。
+
+        请求必须携带有效的 admin 角色 JWT，否则返回认证或权限错误。
+      operationId: adminPing
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: Success, token error or forbidden
+          description: 管理员权限校验通过或失败（业务码区分）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 管理员权限通过
+                  value:
+                    code: 0
+                    message: success
+                    data:
+                      message: admin access granted
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                tokenMissing:
+                  summary: 未携带令牌
+                  value:
+                    code: 2002
+                    message: authentication required
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                tokenInvalid:
+                  summary: 令牌无效或过期
+                  value:
+                    code: 2002
+                    message: invalid token
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
+                forbidden:
+                  summary: 普通用户无权访问
+                  value:
+                    code: 3001
+                    message: forbidden
+                    data: null
+                    request_id: 550e8400-e29b-41d4-a716-446655440000
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        使用登录接口返回的 JWT 令牌，格式为 `Bearer <token>`。
+
+        令牌采用 HS256 签名，包含以下自定义声明：
+        - `uid`：用户 ID
+        - `username`：用户名快照
+        - `role`：角色快照（`admin` 或 `user`）
   schemas:
     ApiResponse:
       type: object
       required: [code, message]
       properties:
-        code: { type: integer, description: '业务码，0 表示成功，非 0 表示具体错误' }
-        message: { type: string }
-        data: { type: object }
-        request_id: { type: string }
+        code:
+          type: integer
+          description: 业务码，0 表示成功，非 0 表示具体错误类型
+          example: 0
+        message:
+          type: string
+          description: 面向客户端的简短提示，不包含内部错误细节
+          example: success
+        data:
+          description: 业务数据，成功时返回具体内容，失败时为 null
+          oneOf:
+            - type: object
+            - type: array
+            - type: string
+            - type: integer
+        request_id:
+          type: string
+          description: 请求追踪标识，可通过请求头 X-Request-ID 传入或由服务端自动生成
+          example: 550e8400-e29b-41d4-a716-446655440000
     RegisterRequest:
       type: object
       required: [username, password]
       properties:
-        username: { type: string, minLength: 3, maxLength: 64 }
-        password: { type: string, minLength: 8, maxLength: 128, format: password }
-        role: { type: string, enum: [user] }
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[a-zA-Z0-9_]+$'
+          description: 用户登录名，仅允许 ASCII 字母、数字和下划线，长度 3-64
+          example: alice
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          description: 用户密码，长度 8-128，必须同时包含字母和数字
+          example: Secret123
+        role:
+          type: string
+          enum: [user]
+          description: 角色字段，可选。服务端固定创建 user 角色，传入其他值将被拒绝
+          example: user
     LoginRequest:
       type: object
       required: [username, password]
       properties:
-        username: { type: string, minLength: 3, maxLength: 64 }
-        password: { type: string, minLength: 8, maxLength: 128, format: password }
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          description: 用户登录名
+          example: alice
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          description: 用户密码
+          example: Secret123
     UserResponse:
       type: object
       required: [id, username, role, status, created_at]
       properties:
-        id: { type: integer, format: int64 }
-        username: { type: string }
-        role: { type: string, enum: [admin, user] }
-        status: { type: string, enum: [active, disabled] }
-        created_at: { type: string, format: date-time }
+        id:
+          type: integer
+          format: int64
+          description: 用户主键
+          example: 1
+        username:
+          type: string
+          description: 用户登录名
+          example: alice
+        role:
+          type: string
+          enum: [admin, user]
+          description: 用户角色
+          example: user
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 用户状态，active 可正常登录，disabled 无法登录
+          example: active
+        created_at:
+          type: string
+          format: date-time
+          description: 用户创建时间
+          example: "2026-09-08T12:00:00Z"
     LoginResponse:
       type: object
       required: [token, user]
       properties:
-        token: { type: string }
-        user: { $ref: '#/components/schemas/UserResponse' }
+        token:
+          type: string
+          description: JWT 令牌，后续请求需放入 Authorization 头
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.signature
+        user:
+          $ref: '#/components/schemas/UserResponse'
