@@ -63,8 +63,7 @@ paths:
         注册普通用户。
 
         **安全约束：**
-        - 注册接口只创建 `user` 角色账户，客户端无法通过此接口创建管理员。
-        - 如果请求体包含 `role` 字段且值不为 `user`，将返回参数校验错误。
+        - 注册接口固定创建 `user` 角色账户，客户端无法通过此接口创建管理员。
         - 密码以 Argon2id 哈希形式存储，明文不落库。
       operationId: register
       requestBody:
@@ -73,18 +72,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
-            examples:
-              normal:
-                summary: 标准注册
-                value:
-                  username: alice
-                  password: Secret123
-              withRole:
-                summary: 显式指定 user 角色
-                value:
-                  username: bob
-                  password: MyPass456
-                  role: user
+            example:
+              username: alice
+              password: Secret123
       responses:
         '200':
           description: 注册成功或失败（业务码区分）
@@ -110,13 +100,6 @@ paths:
                   value:
                     code: 1001
                     message: invalid username
-                    data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
-                roleRejected:
-                  summary: 拒绝创建管理员
-                  value:
-                    code: 1001
-                    message: only user role can be registered
                     data: null
                     request_id: 550e8400-e29b-41d4-a716-446655440000
                 conflict:
@@ -316,6 +299,7 @@ components:
             - type: array
             - type: string
             - type: integer
+          nullable: true
         request_id:
           type: string
           description: 请求追踪标识，可通过请求头 X-Request-ID 传入或由服务端自动生成
@@ -338,11 +322,6 @@ components:
           format: password
           description: 用户密码，长度 8-128，必须同时包含字母和数字
           example: Secret123
-        role:
-          type: string
-          enum: [user]
-          description: 角色字段，可选。服务端固定创建 user 角色，传入其他值将被拒绝
-          example: user
     LoginRequest:
       type: object
       required: [username, password]

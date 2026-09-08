@@ -88,8 +88,7 @@ func TestAuthRoutes(t *testing.T) {
 	r, tokens := newRouterForTest()
 	w := request(r, http.MethodGet, "/health", "", "")
 	assertCode(t, w, response.CodeOK)
-	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123","role":"admin"}`, "")
-	assertCode(t, w, response.CodeValidation)
+
 	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123"}`, "")
 	assertCode(t, w, response.CodeOK)
 	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"SecurePass123"}`, "")
@@ -107,6 +106,7 @@ func TestAuthRoutes(t *testing.T) {
 	}
 	w = request(r, http.MethodGet, "/api/v1/admin/ping", "", payload.Data.Token)
 	assertCode(t, w, response.CodeForbidden)
+
 	adminToken, err := tokens.Generate(model.User{ID: 99, Username: "admin", Role: model.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)

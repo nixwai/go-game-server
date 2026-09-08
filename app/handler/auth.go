@@ -4,7 +4,6 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	auth "github.com/nixwai/go-game-server/app/dto/auth"
-	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/security"
 	"github.com/nixwai/go-game-server/app/service"
@@ -24,11 +23,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req auth.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteError(c, response.NewError(response.CodeValidation, "invalid request body", err))
-		return
-	}
-	// 注册接口永远由 Service 创建 user 角色；显式提交其他角色直接拒绝。
-	if req.Role != "" && req.Role != model.RoleUser {
-		response.WriteError(c, response.NewError(response.CodeValidation, "only user role can be registered", nil))
 		return
 	}
 	user, err := h.service.Register(c.Request.Context(), req.Username, req.Password)
