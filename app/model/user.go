@@ -15,13 +15,12 @@ const (
 )
 
 // User 是 user 表对应的持久化实体。
-// 该类型只描述数据库数据，不作为 HTTP 接口响应直接序列化。
 type User struct {
 	// ID 是用户的自增主键。
 	ID uint64 `gorm:"primaryKey;autoIncrement"`
 	// Username 是用户登录名，必须唯一。
 	Username string `gorm:"type:varchar(64);not null;uniqueIndex"`
-	// PasswordHash 保存 Argon2id 哈希，不允许出现在接口响应中。
+	// PasswordHash 保存 Argon2id 哈希。
 	PasswordHash string `gorm:"type:varchar(255);not null"`
 	// Role 保存用户角色，例如 admin 或 user。
 	Role string `gorm:"type:varchar(16);not null;index"`

@@ -23,7 +23,6 @@ func main() {
 		fail(err)
 	}
 
-	// 迁移只需要数据库 URL，因此不强制要求服务运行所需的 JWT_SECRET。
 	databaseURL := os.Getenv("MYSQL_MIGRATE_URL")
 	if databaseURL == "" {
 		fail(fmt.Errorf("MYSQL_MIGRATE_URL is required"))

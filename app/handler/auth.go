@@ -4,8 +4,8 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	auth "github.com/nixwai/go-game-server/app/dto/auth"
+	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/response"
-	"github.com/nixwai/go-game-server/app/security"
 	"github.com/nixwai/go-game-server/app/service"
 )
 
@@ -19,12 +19,7 @@ type AuthHandler struct {
 func NewAuthHandler(s *service.AuthService) *AuthHandler { return &AuthHandler{service: s} }
 
 // Register 处理普通用户注册请求。
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req auth.RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(response.CodeValidation, "请求参数无效", err))
-		return
-	}
+func (h *AuthHandler) Register(c *gin.Context, req auth.RegisterRequest) {
 	user, err := h.service.Register(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		response.WriteError(c, err)
@@ -34,12 +29,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 // Login 处理用户名密码登录请求，并返回 JWT。
-func (h *AuthHandler) Login(c *gin.Context) {
-	var req auth.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.WriteError(c, response.NewError(response.CodeValidation, "请求参数无效", err))
-		return
-	}
+func (h *AuthHandler) Login(c *gin.Context, req auth.LoginRequest) {
 	result, err := h.service.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		response.WriteError(c, err)
@@ -50,13 +40,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Me 返回当前登录用户的最新信息。
 func (h *AuthHandler) Me(c *gin.Context) {
-	claimsValue, exists := c.Get("claims")
-	claims, ok := claimsValue.(*security.Claims)
-	if !exists || !ok {
-		response.WriteError(c, response.NewError(response.CodeTokenInvalid, "令牌无效", nil))
-		return
-	}
-	user, err := h.service.CurrentUser(c.Request.Context(), claims.UserID)
+	userID := middleware.GetUserID(c)
+	user, err := h.service.CurrentUser(c.Request.Context(), userID)
 	if err != nil {
 		response.WriteError(c, err)
 		return

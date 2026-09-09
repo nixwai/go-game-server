@@ -31,8 +31,10 @@ func main() {
 		}
 	}()
 	// 初始化服务
-	application := bootstrap.New(cfg, db)
-
+	application, err := bootstrap.New(cfg, db)
+	if err != nil {
+		fatal(err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	// 运行服务

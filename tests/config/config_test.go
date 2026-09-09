@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/nixwai/go-game-server/app/config"
@@ -17,6 +18,7 @@ func TestLoadRejectsMissingRequiredValues(t *testing.T) {
 func TestLoadAndAdminLoad(t *testing.T) {
 	t.Setenv("MYSQL_DSN", "user:pass@tcp(localhost:3306)/db")
 	t.Setenv("JWT_SECRET", "01234567890123456789012345678901")
+	t.Setenv("MASTER_KEY", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)

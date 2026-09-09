@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS ai_model;
+DROP TABLE IF EXISTS ai_provider;

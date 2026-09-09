@@ -45,7 +45,6 @@ func main() {
 		fail(err)
 	}
 
-	// 明文密码只在进程内短暂存在，数据库只接收不可逆的 Argon2id 哈希。
 	password := string(passwordBytes)
 	hasher := security.PasswordHasher{Time: cfg.Argon2Time, Memory: cfg.Argon2Memory, Threads: cfg.Argon2Threads, KeyLen: cfg.Argon2KeyLen, SaltLen: cfg.Argon2SaltLen}
 	hash, err := hasher.Hash(password)

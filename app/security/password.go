@@ -27,7 +27,7 @@ type PasswordHasher struct {
 
 // Hash 为密码生成随机盐，并返回 PHC 格式的 Argon2id 哈希字符串。
 func (h PasswordHasher) Hash(password string) (string, error) {
-	// 每个密码必须使用独立随机盐，避免相同密码产生相同哈希。
+	// 为每个密码生成独立随机盐。
 	salt := make([]byte, h.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate password salt: %w", err)

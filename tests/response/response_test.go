@@ -16,7 +16,6 @@ func TestWriteErrorHidesInternalError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	c.Set("request_id", "req-1")
 	response.WriteError(c, response.NewError(response.CodeInternal, "服务器内部错误", assertErr{}))
 	if recorder.Code != 200 {
 		t.Fatalf("status: %d", recorder.Code)

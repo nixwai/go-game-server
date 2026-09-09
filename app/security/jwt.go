@@ -22,7 +22,7 @@ type Claims struct {
 
 // TokenManager 负责 JWT 的签发和校验。
 type TokenManager struct {
-	// secret 是 HS256 使用的签名密钥，仅在内存中保存。
+	// secret 是 HS256 使用的签名密钥。
 	secret []byte
 	// issuer 是 JWT 的签发方，解析时会强制校验。
 	issuer string
@@ -57,7 +57,7 @@ func (m *TokenManager) Generate(user model.User) (string, error) {
 // Parse 校验 JWT 的签名算法、签发方、有效期和令牌格式。
 func (m *TokenManager) Parse(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
-		// 显式限制算法，防止攻击者将算法替换为其他类型。
+		// 限制签名算法为 HS256。
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method")
 		}

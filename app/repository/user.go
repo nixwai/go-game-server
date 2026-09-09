@@ -17,7 +17,7 @@ var (
 	ErrDuplicate = errors.New("user already exists")
 )
 
-// UserRepository 定义用户数据访问边界，Service 只依赖该接口。
+// UserRepository 定义用户数据访问边界。
 type UserRepository interface {
 	// FindByUsername 根据登录名查询用户。
 	FindByUsername(ctx context.Context, username string) (model.User, error)
@@ -36,7 +36,7 @@ type GormUserRepository struct {
 // NewGormUserRepository 创建 GORM 用户仓储。
 func NewGormUserRepository(db *gorm.DB) *GormUserRepository { return &GormUserRepository{db: db} }
 
-// FindByUsername 使用参数化条件查询用户，避免拼接 SQL。
+// FindByUsername 根据用户名查询用户。
 func (r *GormUserRepository) FindByUsername(ctx context.Context, username string) (model.User, error) {
 	var user model.User
 	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error

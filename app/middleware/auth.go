@@ -20,7 +20,6 @@ func AuthRequired(tokens *security.TokenManager) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		// 去除 Bearer 前缀和多余空格后再解析，解析失败时不暴露底层 JWT 错误。
 		claims, err := tokens.Parse(strings.TrimSpace(strings.TrimPrefix(header, prefix)))
 		if err != nil {
 			response.WriteError(c, response.NewError(response.CodeTokenInvalid, "令牌无效", nil))
@@ -35,13 +34,31 @@ func AuthRequired(tokens *security.TokenManager) gin.HandlerFunc {
 // AdminOnly 要求当前请求已通过 JWT 鉴权且令牌角色为 admin。
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		claimsValue, exists := c.Get("claims")
-		claims, ok := claimsValue.(*security.Claims)
-		if !exists || !ok || claims.Role != model.RoleAdmin {
+		claims, ok := GetClaims(c)
+		if !ok || claims.Role != model.RoleAdmin {
 			response.WriteError(c, response.NewError(response.CodeForbidden, "权限不足", nil))
 			c.Abort()
 			return
 		}
 		c.Next()
 	}
+}
+
+// GetClaims 从 Gin 上下文中读取 JWT Claims。
+func GetClaims(c *gin.Context) (*security.Claims, bool) {
+	claimsValue, exists := c.Get("claims")
+	claims, ok := claimsValue.(*security.Claims)
+	if !exists || !ok {
+		return nil, false
+	}
+	return claims, true
+}
+
+// GetUserID 从 Gin 上下文中读取当前用户 ID。
+func GetUserID(c *gin.Context) uint64 {
+	claims, ok := GetClaims(c)
+	if !ok {
+		return 0
+	}
+	return claims.UserID
 }

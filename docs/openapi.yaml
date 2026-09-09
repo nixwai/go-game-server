@@ -24,7 +24,10 @@ info:
     | 3001 | 权限不足 |
     | 4001 | 资源冲突（如用户名重复）|
     | 4004 | 资源不存在 |
+    | 4005 | 默认 AI 配置不可修改或删除 |
+    | 4006 | API Key 传输解密失败 |
     | 9000 | 服务器内部错误 |
+    | 9001 | 加密主密钥未配置或无效 |
 servers:
   - url: http://localhost:8080
     description: 本地开发环境
@@ -35,6 +38,8 @@ tags:
     description: 认证相关接口
   - name: admin
     description: 管理员接口
+  - name: ai
+    description: AI 模型管理接口
 paths:
   /health:
     get:
@@ -54,7 +59,6 @@ paths:
                 message: 成功
                 data:
                   status: 正常
-                request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/register:
     post:
       tags: [auth]
@@ -94,21 +98,18 @@ paths:
                       role: user
                       status: active
                       created_at: "2026-09-08T12:00:00Z"
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 validationError:
                   summary: 参数校验失败
                   value:
                     code: 1001
                     message: 用户名格式无效
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 conflict:
                   summary: 用户名已存在
                   value:
                     code: 4001
                     message: 用户名已存在
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/login:
     post:
       tags: [auth]
@@ -150,21 +151,18 @@ paths:
                         role: user
                         status: active
                         created_at: "2026-09-08T12:00:00Z"
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 authFailed:
                   summary: 用户名或密码错误
                   value:
                     code: 2001
                     message: 用户名格式无效 or password
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 validationError:
                   summary: 参数校验失败
                   value:
                     code: 1001
                     message: 用户名格式无效
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/auth/me:
     get:
       tags: [auth]
@@ -196,28 +194,24 @@ paths:
                       role: user
                       status: active
                       created_at: "2026-09-08T12:00:00Z"
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenMissing:
                   summary: 未携带令牌
                   value:
                     code: 2002
                     message: 需要认证
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenInvalid:
                   summary: 令牌无效或过期
                   value:
                     code: 2002
                     message: 令牌无效
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 userNotFound:
                   summary: 用户不存在或已禁用
                   value:
                     code: 4004
                     message: user not found
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
   /api/v1/admin/ping:
     get:
       tags: [admin]
@@ -244,28 +238,362 @@ paths:
                     message: 成功
                     data:
                       message: 管理员权限验证通过
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenMissing:
                   summary: 未携带令牌
                   value:
                     code: 2002
                     message: 需要认证
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 tokenInvalid:
                   summary: 令牌无效或过期
                   value:
                     code: 2002
                     message: 令牌无效
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
                 forbidden:
                   summary: 普通用户无权访问
                   value:
                     code: 3001
                     message: 权限不足
                     data: null
-                    request_id: 550e8400-e29b-41d4-a716-446655440000
+  /api/v1/ai/public-key:
+    get:
+      tags: [ai]
+      summary: 获取 RSA 公钥
+      description: |
+        返回服务端启动时生成的 RSA-2048 公钥（PEM 格式）。
+
+        前端使用该公钥对 API Key 明文做 RSA-OAEP 加密后，以 base64 编码形式提交到新增或更新产商接口。
+
+        **安全约束：**
+        - 公钥在服务重启后会变更，前端每次使用前应重新获取。
+        - 私钥仅存在于服务端内存中。
+      operationId: getPublicKey
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功返回公钥
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBg...\n-----END PUBLIC KEY-----"
+  /api/v1/ai/providers/list:
+    get:
+      tags: [ai]
+      summary: 列出当前用户的 AI 产商配置
+      description: |
+        返回当前用户的所有产商配置及其模型列表。
+
+        响应列表头部固定包含一个通过配置文件提供的只读默认 AI 产商（`id=0, is_default=true`），
+        该默认产商包含一个只读默认模型（`id=0, is_default=true`），用户不可修改或删除。
+
+        **安全约束：**
+        - 响应中不包含任何 API Key 字段，仅通过 `has_api_key` 指示是否已配置。
+      operationId: listAIProviders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功返回产商列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  - id: 0
+                    provider_name: OpenAI
+                    base_url: https://api.openai.com/v1
+                    status: active
+                    is_default: true
+                    has_api_key: true
+                    models:
+                      - id: 0
+                        model_name: gpt-4o-mini
+                        status: active
+                        is_default: true
+                        created_at: "2026-09-08T12:00:00Z"
+                    created_at: "2026-09-08T12:00:00Z"
+                  - id: 1
+                    provider_name: Anthropic
+                    base_url: https://api.anthropic.com
+                    status: active
+                    is_default: false
+                    has_api_key: true
+                    models:
+                      - id: 1
+                        model_name: claude-3-5-sonnet
+                        status: active
+                        is_default: false
+                        created_at: "2026-09-08T13:00:00Z"
+                    created_at: "2026-09-08T13:00:00Z"
+  /api/v1/ai/providers/create:
+    post:
+      tags: [ai]
+      summary: 新增 AI 产商配置
+      description: |
+        创建当前用户的 AI 产商配置。
+
+        **安全约束：**
+        - `encrypted_api_key` 是前端使用 RSA 公钥加密后的 base64 密文，服务端 RSA 解密后通过 AES-256-GCM 加密入库。
+        - API Key 在任何响应中都不返回。
+        - 产商名称和模型名称均为用户自由输入，后端仅做长度校验（1-128 字符）。
+      operationId: createAIProvider
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderRequest'
+            example:
+              provider_name: OpenAI
+              base_url: https://api.openai.com/v1
+              encrypted_api_key: base64-encoded-rsa-ciphertext
+      responses:
+        '200':
+          description: 创建成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 创建成功
+                  value:
+                    code: 0
+                    message: 成功
+                    data:
+                      id: 1
+                      provider_name: OpenAI
+                      base_url: https://api.openai.com/v1
+                      status: active
+                      is_default: false
+                      has_api_key: true
+                      models: []
+                      created_at: "2026-09-08T12:00:00Z"
+                decryptFailed:
+                  summary: API Key 解密失败
+                  value:
+                    code: 4006
+                    message: API Key 解密失败
+                    data: null
+  /api/v1/ai/providers/update:
+    post:
+      tags: [ai]
+      summary: 更新 AI 产商配置
+      description: |
+        更新产商名称、Base URL、状态或 API Key。所有字段可选，未提供的字段保留原值。
+
+        **安全约束：**
+        - `id=0` 的默认产商不可修改，返回业务码 4005。
+        - 如提供 `encrypted_api_key`，服务端重新 RSA 解密并 AES-256-GCM 加密后更新。
+        - API Key 在任何响应中都不返回。
+      operationId: updateAIProvider
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+            example:
+              id: 1
+              provider_name: Anthropic
+              base_url: https://api.anthropic.com
+      responses:
+        '200':
+          description: 更新成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 更新成功
+                  value:
+                    code: 0
+                    message: 成功
+                    data:
+                      id: 1
+                      provider_name: Anthropic
+                      base_url: https://api.anthropic.com
+                      status: active
+                      is_default: false
+                      has_api_key: true
+                      models: []
+                      created_at: "2026-09-08T12:00:00Z"
+                defaultReadOnly:
+                  summary: 默认产商不可修改
+                  value:
+                    code: 4005
+                    message: 默认 AI 配置不可修改
+                    data: null
+                notFound:
+                  summary: 产商不存在
+                  value:
+                    code: 4004
+                    message: 产商不存在
+                    data: null
+  /api/v1/ai/providers/delete:
+    post:
+      tags: [ai]
+      summary: 删除 AI 产商配置
+      description: |
+        删除产商配置及其关联的所有模型。
+
+        **安全约束：**
+        - `id=0` 的默认产商不可删除，返回业务码 4005。
+        - 删除前校验产商归属权，跨用户访问返回 4004。
+      operationId: deleteAIProvider
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteProviderRequest'
+            example:
+              id: 1
+      responses:
+        '200':
+          description: 删除成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 删除成功
+                  value:
+                    code: 0
+                    message: 成功
+                    data: null
+                defaultReadOnly:
+                  summary: 默认产商不可删除
+                  value:
+                    code: 4005
+                    message: 默认 AI 配置不可删除
+                    data: null
+  /api/v1/ai/models/create:
+    post:
+      tags: [ai]
+      summary: 新增 AI 模型
+      description: |
+        在指定产商下新增模型配置。
+
+        **安全约束：**
+        - 校验产商归属当前用户，跨用户访问返回 4004。
+      operationId: createAIModel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
+            example:
+              provider_id: 1
+              model_name: gpt-4o
+      responses:
+        '200':
+          description: 创建成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  id: 1
+                  model_name: gpt-4o
+                  status: active
+                  is_default: false
+                  created_at: "2026-09-08T12:00:00Z"
+  /api/v1/ai/models/update:
+    post:
+      tags: [ai]
+      summary: 更新 AI 模型
+      description: |
+        更新模型名称或状态，所有字段可选。
+
+        **安全约束：**
+        - `id=0` 的默认模型不可修改，返回业务码 4005。
+        - 校验模型所属产商归属当前用户。
+      operationId: updateAIModel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModelRequest'
+            example:
+              id: 1
+              model_name: gpt-4o-mini
+              status: disabled
+      responses:
+        '200':
+          description: 更新成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  id: 1
+                  model_name: gpt-4o-mini
+                  status: disabled
+                  is_default: false
+                  created_at: "2026-09-08T12:00:00Z"
+  /api/v1/ai/models/delete:
+    post:
+      tags: [ai]
+      summary: 删除 AI 模型
+      description: |
+        删除模型配置。
+
+        **安全约束：**
+        - `id=0` 的默认模型不可删除，返回业务码 4005。
+        - 校验模型所属产商归属当前用户。
+      operationId: deleteAIModel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteModelRequest'
+            example:
+              id: 1
+      responses:
+        '200':
+          description: 删除成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data: null
 components:
   securitySchemes:
     bearerAuth:
@@ -300,10 +628,6 @@ components:
             - type: string
             - type: integer
           nullable: true
-        request_id:
-          type: string
-          description: 请求追踪标识，可通过请求头 X-Request-ID 传入或由服务端自动生成
-          example: 550e8400-e29b-41d4-a716-446655440000
     RegisterRequest:
       type: object
       required: [username, password]
@@ -377,3 +701,175 @@ components:
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.signature
         user:
           $ref: '#/components/schemas/UserResponse'
+    CreateProviderRequest:
+      type: object
+      required: [provider_name, base_url, encrypted_api_key]
+      properties:
+        provider_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 产商名称，用户自由输入
+          example: OpenAI
+        base_url:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 产商 API 基础地址
+          example: https://api.openai.com/v1
+        encrypted_api_key:
+          type: string
+          description: 使用 RSA 公钥加密后的 base64 编码 API Key 密文
+          example: base64-encoded-rsa-ciphertext
+    UpdateProviderRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 目标产商 ID，默认产商为 0
+          example: 1
+        provider_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 新的产商名称，不提供则保留原值
+          example: Anthropic
+        base_url:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 新的 API 基礎地址，不提供则保留原值
+          example: https://api.anthropic.com
+        encrypted_api_key:
+          type: string
+          description: 新的 RSA 加密后的 API Key 密文，不提供则保留原值
+          example: base64-encoded-rsa-ciphertext
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 新的状态值，不提供则保留原值
+          example: active
+    DeleteProviderRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 目标产商 ID，默认产商为 0
+          example: 1
+    CreateModelRequest:
+      type: object
+      required: [provider_id, model_name]
+      properties:
+        provider_id:
+          type: integer
+          format: int64
+          description: 目标产商 ID
+          example: 1
+        model_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 模型名称，用户自由输入
+          example: gpt-4o
+    UpdateModelRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 目标模型 ID，默认模型为 0
+          example: 1
+        model_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 新的模型名称，不提供则保留原值
+          example: gpt-4o-mini
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 新的状态值，不提供则保留原值
+          example: disabled
+    DeleteModelRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 目标模型 ID，默认模型为 0
+          example: 1
+    ProviderResponse:
+      type: object
+      required: [id, provider_name, base_url, status, is_default, has_api_key, models]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 产商配置主键，默认产商为 0
+          example: 1
+        provider_name:
+          type: string
+          description: 产商名称
+          example: OpenAI
+        base_url:
+          type: string
+          description: 产商 API 基础地址
+          example: https://api.openai.com/v1
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 产商状态
+          example: active
+        is_default:
+          type: boolean
+          description: 是否为配置文件提供的只读默认产商
+          example: false
+        has_api_key:
+          type: boolean
+          description: 是否已配置 API Key。响应中不返回 Key 本身。
+          example: true
+        models:
+          type: array
+          description: 该产商下的模型列表
+          items:
+            $ref: '#/components/schemas/ModelResponse'
+        created_at:
+          type: string
+          format: date-time
+          description: 产商配置创建时间
+          example: "2026-09-08T12:00:00Z"
+    ModelResponse:
+      type: object
+      required: [id, model_name, status, is_default]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 模型配置主键，默认模型为 0
+          example: 1
+        model_name:
+          type: string
+          description: 模型名称
+          example: gpt-4o
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 模型状态
+          example: active
+        is_default:
+          type: boolean
+          description: 是否为配置文件提供的只读默认模型
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: 模型配置创建时间
+          example: "2026-09-08T12:00:00Z"
+
+

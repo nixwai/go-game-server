@@ -16,7 +16,7 @@ import (
 
 // AuthService 编排用户注册、登录和当前用户查询。
 type AuthService struct {
-	// users 是用户数据访问接口，隔离 Service 与具体数据库实现。
+	// users 是用户数据访问接口。
 	users repository.UserRepository
 	// hasher 负责密码哈希和校验。
 	hasher security.PasswordHasher
@@ -28,7 +28,7 @@ type AuthService struct {
 type LoginResult struct {
 	// Token 是客户端后续请求使用的 Bearer Access Token。
 	Token string
-	// User 是服务层使用的持久化用户实体，Handler 必须先转换为 DTO 后才能作为接口响应。
+	// User 是服务层返回的持久化用户实体。
 	User model.User
 }
 
@@ -37,7 +37,7 @@ func NewAuthService(users repository.UserRepository, hasher security.PasswordHas
 	return &AuthService{users: users, hasher: hasher, tokens: tokens}
 }
 
-// Register 校验并创建普通用户，任何客户端都不能通过此接口创建管理员。
+// Register 校验并创建普通用户。
 func (s *AuthService) Register(ctx context.Context, username, password string) (model.User, error) {
 	if err := validateUsername(username); err != nil {
 		return model.User{}, err
@@ -65,7 +65,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 		return LoginResult{}, err
 	}
 	user, err := s.users.FindByUsername(ctx, strings.TrimSpace(username))
-	// 统一处理用户不存在、密码错误和禁用状态，避免泄露账号是否存在。
+	// 用户不存在、密码错误和禁用状态返回相同错误。
 	if err != nil || user.Status != model.StatusActive || !s.hasher.Compare(password, user.PasswordHash) {
 		return LoginResult{}, response.NewError(response.CodeAuthFailed, "用户名或密码错误", nil)
 	}
@@ -76,7 +76,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 	return LoginResult{Token: token, User: user}, nil
 }
 
-// CurrentUser 根据 JWT 中的用户 ID 查询最新用户状态，避免仅信任令牌快照。
+// CurrentUser 根据用户 ID 查询当前用户信息。
 func (s *AuthService) CurrentUser(ctx context.Context, userID uint64) (model.User, error) {
 	user, err := s.users.FindByID(ctx, userID)
 	if err != nil || user.Status != model.StatusActive {

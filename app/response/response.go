@@ -23,12 +23,17 @@ const (
 	CodeConflict = 4001
 	// CodeNotFound 表示请求的资源不存在。
 	CodeNotFound = 4004
+	// CodeDefaultAIReadOnly 表示默认 AI 配置不可修改或删除。
+	CodeDefaultAIReadOnly = 4005
+	// CodeDecryptFailed 表示 API Key 传输层解密失败。
+	CodeDecryptFailed = 4006
 	// CodeInternal 表示服务器内部异常。
 	CodeInternal = 9000
+	// CodeMasterKeyInvalid 表示加密主密钥未配置或无效。
+	CodeMasterKeyInvalid = 9001
 )
 
 // Body 是所有 API 响应使用的统一包装结构。
-// 所有接口统一返回 HTTP 200，前端通过 Code 字段判断业务结果。
 type Body struct {
 	// Code 是业务码，成功固定为 0，非 0 表示具体错误类型。
 	Code int `json:"code"`
@@ -36,8 +41,6 @@ type Body struct {
 	Message string `json:"message"`
 	// Data 是成功响应的业务数据。
 	Data any `json:"data,omitempty"`
-	// RequestID 是请求追踪标识。
-	RequestID string `json:"request_id,omitempty"`
 }
 
 // AppError 是可安全返回给客户端的业务错误。
@@ -65,11 +68,10 @@ func NewError(code int, message string, err error) *AppError {
 
 // Write 写入统一格式的响应，HTTP 状态码始终为 200。
 func Write(c *gin.Context, code int, message string, data any) {
-	c.JSON(http.StatusOK, Body{Code: code, Message: message, Data: data, RequestID: c.GetString("request_id")})
+	c.JSON(http.StatusOK, Body{Code: code, Message: message, Data: data})
 }
 
 // WriteError 将应用错误转换为安全的统一响应，HTTP 状态码始终为 200。
-// 前端通过响应体中的 code 字段判断业务是否成功。
 func WriteError(c *gin.Context, err error) {
 	var appErr *AppError
 	if errors.As(err, &appErr) {

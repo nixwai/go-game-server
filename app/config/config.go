@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"encoding/base64"
 )
 
 // Config 是服务运行所需的全部配置。
@@ -16,7 +18,7 @@ type Config struct {
 	HTTPAddr string
 	// MySQLDSN 是 GORM 使用的 MySQL 数据源名称。
 	MySQLDSN string
-	// JWTSecret 是签发和校验 HS256 JWT 的密钥，只能通过安全配置注入。
+	// JWTSecret 是签发和校验 HS256 JWT 的密钥。
 	JWTSecret string
 	// JWTIssuer 是 JWT 的签发方声明。
 	JWTIssuer string
@@ -32,9 +34,25 @@ type Config struct {
 	Argon2KeyLen uint32
 	// Argon2SaltLen 是生成随机盐的长度，单位为字节。
 	Argon2SaltLen uint32
+	// MasterKey 是 base64 编码的 32 字节 AES-256 主密钥，用于 AI API Key 存储加密。
+	MasterKey string
+	// DefaultAI 是通过配置文件提供的只读默认 AI 产商和模型，不入数据库。
+	DefaultAI DefaultAIConfig
 }
 
-// Load 加载完整服务配置，并强制校验 JWT 密钥。
+// DefaultAIConfig 描述通过环境变量配置的默认 AI 产商和模型。
+type DefaultAIConfig struct {
+	// ProviderName 是默认产商名称。
+	ProviderName string
+	// BaseURL 是默认产商的 API 基础地址。
+	BaseURL string
+	// ModelName 是默认模型名称。
+	ModelName string
+	// APIKey 是默认产商的 API Key，直接存于内存，不入库。
+	APIKey string
+}
+
+// Load 加载完整服务配置，并强制校验 JWT 密钥和加密主密钥。
 func Load() (Config, error) { return load(true) }
 
 // LoadForAdmin 加载管理员初始化命令所需配置。该命令不需要 JWT 密钥。
@@ -71,7 +89,6 @@ func load(requireJWT bool) (Config, error) {
 		return Config{}, err
 	}
 
-	// 敏感配置只从环境变量读取，不在代码中写入真实密钥或密码。
 	cfg := Config{
 		AppEnv:        env("APP_ENV", "development"),
 		HTTPAddr:      env("HTTP_ADDR", ":8080"),
@@ -84,6 +101,13 @@ func load(requireJWT bool) (Config, error) {
 		Argon2Threads: threads,
 		Argon2KeyLen:  keyLen,
 		Argon2SaltLen: saltLen,
+		MasterKey:     os.Getenv("MASTER_KEY"),
+		DefaultAI: DefaultAIConfig{
+			ProviderName: env("DEFAULT_AI_PROVIDER", "OpenAI"),
+			BaseURL:      env("DEFAULT_AI_BASE_URL", "https://api.openai.com/v1"),
+			ModelName:    env("DEFAULT_AI_MODEL", "gpt-4o-mini"),
+			APIKey:       os.Getenv("DEFAULT_AI_API_KEY"),
+		},
 	}
 	if cfg.MySQLDSN == "" {
 		return Config{}, fmt.Errorf("MYSQL_DSN is required")
@@ -93,6 +117,19 @@ func load(requireJWT bool) (Config, error) {
 	}
 	if cfg.Argon2Time == 0 || cfg.Argon2Memory < 19*1024 || cfg.Argon2Threads == 0 || cfg.Argon2KeyLen < 16 || cfg.Argon2SaltLen < 16 {
 		return Config{}, fmt.Errorf("invalid Argon2 configuration")
+	}
+	// 校验 AES-256 主密钥：base64 解码后必须恰好为 32 字节。
+	if requireJWT {
+		if cfg.MasterKey == "" {
+			return Config{}, fmt.Errorf("MASTER_KEY is required")
+		}
+		masterBytes, err := base64.StdEncoding.DecodeString(cfg.MasterKey)
+		if err != nil {
+			return Config{}, fmt.Errorf("MASTER_KEY must be valid base64: %w", err)
+		}
+		if len(masterBytes) != 32 {
+			return Config{}, fmt.Errorf("MASTER_KEY must decode to 32 bytes, got %d", len(masterBytes))
+		}
 	}
 	return cfg, nil
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nixwai/go-game-server/app/config"
 	"github.com/nixwai/go-game-server/app/handler"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/repository"
@@ -53,7 +54,10 @@ func newRouterForTest() (*gin.Engine, *security.TokenManager) {
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
 	svc := service.NewAuthService(repo, hasher, tokens)
-	return router.New(handler.NewAuthHandler(svc), tokens), tokens
+	crypto, _ := security.NewCryptoManager("MDEyMzQ1Njc4OWFiY2RlZmdoMTIzNDU2Nzg5YWJjZGVmZ2g=")
+	aiSvc := service.NewAIService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})
+	aiHandler := handler.NewAIHandler(aiSvc, crypto)
+	return router.New(handler.NewAuthHandler(svc), aiHandler, tokens), tokens
 }
 func request(r http.Handler, method, path, body, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))

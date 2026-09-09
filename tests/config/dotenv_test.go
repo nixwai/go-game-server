@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,7 +56,8 @@ func TestLoadAutomaticallyReadsDotEnv(t *testing.T) {
 	tempDir := t.TempDir()
 	dotEnvPath := filepath.Join(tempDir, ".env")
 	content := "MYSQL_DSN=user:pass@tcp(localhost:3306)/db\n" +
-		"JWT_SECRET=01234567890123456789012345678901\n"
+		"JWT_SECRET=01234567890123456789012345678901\n" +
+		"MASTER_KEY=" + base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n"
 	if err := os.WriteFile(dotEnvPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
