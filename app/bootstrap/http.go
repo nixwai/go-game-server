@@ -9,11 +9,6 @@ import (
 	"time"
 
 	"github.com/nixwai/go-game-server/app/config"
-	"github.com/nixwai/go-game-server/app/handler"
-	"github.com/nixwai/go-game-server/app/repository"
-	"github.com/nixwai/go-game-server/app/router"
-	"github.com/nixwai/go-game-server/app/security"
-	"github.com/nixwai/go-game-server/app/service"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -29,53 +24,17 @@ type Application struct {
 	httpServer *http.Server
 }
 
-// New 根据 DB 和配置创建 HTTP 服务应用并组装全部运行时依赖。
-func New(cfg config.Config, db *DB) (*Application, error) {
-	authHandler, aiHandler, tokens, err := buildDependencies(cfg, db)
-	if err != nil {
-		return nil, err
-	}
+// New 根据 HTTP 监听配置和路由处理器创建 HTTP 服务应用。
+func New(cfg config.Config, handler http.Handler) *Application {
 	return &Application{
-		httpServer: buildHTTPServer(cfg, authHandler, aiHandler, tokens),
-	}, nil
-}
-
-// buildDependencies 构建认证和 AI 管理相关的 Repository、Service、Handler 和 Token 管理器。
-func buildDependencies(cfg config.Config, db *DB) (*handler.AuthHandler, *handler.AIHandler, *security.TokenManager, error) {
-	users := repository.NewGormUserRepository(db.GORM)
-	hasher := security.PasswordHasher{
-		Time:    cfg.Argon2Time,
-		Memory:  cfg.Argon2Memory,
-		Threads: cfg.Argon2Threads,
-		KeyLen:  cfg.Argon2KeyLen,
-		SaltLen: cfg.Argon2SaltLen,
-	}
-	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiresIn)
-	authService := service.NewAuthService(users, hasher, tokens)
-	authHandler := handler.NewAuthHandler(authService)
-
-	// 构建加密管理器和 AI 管理服务。
-	crypto, err := security.NewCryptoManager(cfg.MasterKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create crypto manager: %w", err)
-	}
-	aiProviders := repository.NewGormAIProviderRepository(db.GORM)
-	aiModels := repository.NewGormAIModelRepository(db.GORM)
-	aiService := service.NewAIService(aiProviders, aiModels, crypto, cfg.DefaultAI)
-	aiHandler := handler.NewAIHandler(aiService, crypto)
-
-	return authHandler, aiHandler, tokens, nil
-}
-
-// buildHTTPServer 根据配置创建带超时控制的 HTTP 服务器。
-func buildHTTPServer(cfg config.Config, authHandler *handler.AuthHandler, aiHandler *handler.AIHandler, tokens *security.TokenManager) *http.Server {
-	return &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(authHandler, aiHandler, tokens),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		httpServer: &http.Server{
+			Addr:              cfg.HTTPAddr,
+			Handler:           handler,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      15 * time.Second,
+			IdleTimeout:       60 * time.Second,
+		},
 	}
 }
 

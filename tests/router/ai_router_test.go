@@ -10,13 +10,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nixwai/go-game-server/app/config"
-	"github.com/nixwai/go-game-server/app/handler"
+	"github.com/nixwai/go-game-server/app/ginext"
+
+	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/model"
-	"github.com/nixwai/go-game-server/app/repository"
+	ai "github.com/nixwai/go-game-server/app/module/ai"
+	auth "github.com/nixwai/go-game-server/app/module/auth"
+
 	"github.com/nixwai/go-game-server/app/response"
-	"github.com/nixwai/go-game-server/app/router"
 	"github.com/nixwai/go-game-server/app/security"
-	"github.com/nixwai/go-game-server/app/service"
 )
 
 // --- 内存仓储 mock（用于 AI 路由测试）---
@@ -41,7 +43,7 @@ func (m *memAIProviders) FindByUserID(_ context.Context, userID uint64) ([]model
 func (m *memAIProviders) FindByID(_ context.Context, id uint64) (model.AIProvider, error) {
 	p, ok := m.byID[id]
 	if !ok {
-		return model.AIProvider{}, repository.ErrNotFound
+		return model.AIProvider{}, model.ErrNotFound
 	}
 	return p, nil
 }
@@ -80,7 +82,7 @@ func (m *memAIModels) FindByProviderID(_ context.Context, providerID uint64) ([]
 func (m *memAIModels) FindByID(_ context.Context, id uint64) (model.AIModel, error) {
 	mdl, ok := m.byID[id]
 	if !ok {
-		return model.AIModel{}, repository.ErrNotFound
+		return model.AIModel{}, model.ErrNotFound
 	}
 	return mdl, nil
 }
@@ -119,13 +121,22 @@ func newAIRouterForTest() (*gin.Engine, *security.TokenManager, *security.Crypto
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
-	authSvc := service.NewAuthService(repo, hasher, tokens)
+	authSvc := auth.NewService(repo, hasher, tokens)
+	authH := auth.NewHandler(authSvc)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
-	aiSvc := service.NewAIService(newMemAIProviders(), newMemAIModels(), crypto, config.DefaultAIConfig{
+	aiSvc := ai.NewService(newMemAIProviders(), newMemAIModels(), crypto, config.DefaultAIConfig{
 		ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-default",
 	})
-	aiHandler := handler.NewAIHandler(aiSvc, crypto)
-	return router.New(handler.NewAuthHandler(authSvc), aiHandler, tokens), tokens, crypto
+	aiH := ai.NewHandler(aiSvc, crypto)
+
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestID())
+	r.GET("/health", ginext.Wrap(func(c *gin.Context) (gin.H, error) { return gin.H{"status": "ok"}, nil }))
+	r.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
+	api := r.Group("/api/v1")
+	auth.RegisterRoutes(api, authH, tokens)
+	ai.RegisterRoutes(api, aiH, tokens)
+	return r, tokens, crypto
 }
 
 func TestAIPublicKeyRequiresAuth(t *testing.T) {

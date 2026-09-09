@@ -1,4 +1,4 @@
-﻿# Go Game Server 开发规范
+# Go Game Server 开发规范
 
 ## 1. 项目介绍
 
@@ -26,20 +26,21 @@ cmd/
   migrate/      数据库迁移入口
   admin-init/   首个管理员初始化入口
 app/
+  bootstrap/    HTTP 服务生命周期和共享依赖装配
   config/       配置加载和校验
   database/     数据库连接
-  handler/      HTTP Handler
+  ginext/       Gin 框架扩展工具
   middleware/   请求 ID、JWT、角色权限中间件
-  model/        持久化模型和领域常量
-  dto/          按业务域划分的接口请求与响应 DTO
-  repository/   数据访问抽象与 GORM 实现
+  model/        持久化模型、领域常量和跨模块共享错误
+  module/       按业务域划分的自包含模块（Handler、Service、Repository、DTO、路由注册）
+    auth/       认证模块
+    ai/         AI 模型管理模块
   response/     统一响应、业务码、错误处理
-  router/       路由注册
-  security/     Argon2id 和 JWT
-  service/      认证业务逻辑
+  router/       路由编排和中间件挂载
+  security/     Argon2id、JWT 和 AES/RSA 加解密
 migrations/     版本化 SQL 迁移
 docs/           OpenAPI 文档
-tests/          按 config、dto、response、security、service、router 划分的测试与集成测试
+tests/          按 module、router、config、security、response、bootstrap 划分的测试与集成测试
 docker-compose.yml
 .env.example
 AGENTS.md
@@ -160,17 +161,19 @@ go run ./cmd/admin-init
 
 ## 9. 分层与复用规范
 
+- 每个业务模块自包含 Handler、Service、Repository、DTO 和路由注册，按业务域放在 `app/module/<域名>` 下；
 - Handler 只负责 HTTP 参数解析、调用 Service 和构造响应；
 - Service 负责业务规则，不直接依赖 Gin；
 - Repository 负责数据库访问，不承载业务判断；
 - Security 只提供密码和令牌能力；
 - Model 只定义持久化结构和领域常量，不直接作为 HTTP 响应；
-- DTO 负责接口请求和响应结构，按业务域放在 `app/dto` 下；
+- DTO 负责接口请求和响应结构，与 Handler、Service 同属模块包；
 - Handler 负责将 Service 返回的 Model 映射为响应 DTO；
 - Service 返回业务实体或服务结果，不包含 JSON 标签和 HTTP 协议结构；
 - 禁止直接将 `model.User` 序列化为接口响应，避免泄露 `PasswordHash`；
 - 公共响应和错误码统一复用 `app/response`；
-- 新增数据库实体时必须提供 Repository 接口和实现；
+- 跨模块共享的数据访问错误复用 `app/repository`；
+- 新增数据库实体时在所属模块内提供 Repository 接口和实现；
 - 不复制粘贴认证、权限和错误响应逻辑；
 - 不为了复用而提前创建无业务价值的抽象层。
 
@@ -218,7 +221,7 @@ go test ./...
 go test -cover ./...
 ```
 
-目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/config`、`tests/dto`、`tests/response`、`tests/security`、`tests/service`、`tests/router`；涉及数据库行为的集成测试放在 `tests` 根目录并使用 `mysql-test` 容器，不得依赖开发数据库。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
+目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/module/auth`、`tests/module/ai`、`tests/router`、`tests/config`、`tests/security`、`tests/response`、`tests/bootstrap`；涉及数据库行为的集成测试放在 `tests` 根目录并使用 `mysql-test` 容器，不得依赖开发数据库。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
 
 ## 12. 新功能开发流程
 

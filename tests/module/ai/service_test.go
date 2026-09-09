@@ -1,4 +1,4 @@
-package service_test
+package ai_test
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 
 	"github.com/nixwai/go-game-server/app/config"
 	"github.com/nixwai/go-game-server/app/model"
-	"github.com/nixwai/go-game-server/app/repository"
+	ai "github.com/nixwai/go-game-server/app/module/ai"
+
 	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/security"
-	"github.com/nixwai/go-game-server/app/service"
 )
 
 // validMasterKeyB64 返回一个合法的 base64 编码 32 字节主密钥。
@@ -76,7 +76,7 @@ func (m *memoryAIProviders) FindByID(_ context.Context, id uint64) (model.AIProv
 	}
 	p, ok := m.byID[id]
 	if !ok {
-		return model.AIProvider{}, repository.ErrNotFound
+		return model.AIProvider{}, model.ErrNotFound
 	}
 	return p, nil
 }
@@ -115,7 +115,7 @@ func (m *memoryAIModels) FindByProviderID(_ context.Context, providerID uint64) 
 func (m *memoryAIModels) FindByID(_ context.Context, id uint64) (model.AIModel, error) {
 	mdl, ok := m.byID[id]
 	if !ok {
-		return model.AIModel{}, repository.ErrNotFound
+		return model.AIModel{}, model.ErrNotFound
 	}
 	return mdl, nil
 }
@@ -142,7 +142,7 @@ func (m *memoryAIModels) DeleteByProviderID(_ context.Context, providerID uint64
 	return nil
 }
 
-func newTestAIService(providers repository.AIProviderRepository, models repository.AIModelRepository) (*service.AIService, *security.CryptoManager) {
+func newTestAIService(providers ai.ProviderRepository, models ai.ModelRepository) (*ai.Service, *security.CryptoManager) {
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64())
 	defaultAI := config.DefaultAIConfig{
 		ProviderName: "OpenAI",
@@ -150,7 +150,7 @@ func newTestAIService(providers repository.AIProviderRepository, models reposito
 		ModelName:    "gpt-4o-mini",
 		APIKey:       "sk-default",
 	}
-	return service.NewAIService(providers, models, crypto, defaultAI), crypto
+	return ai.NewService(providers, models, crypto, defaultAI), crypto
 }
 
 func TestCreateProvider(t *testing.T) {
@@ -231,7 +231,7 @@ func TestUpdateProvider(t *testing.T) {
 
 	newName := "Anthropic"
 	newURL := "https://api.anthropic.com"
-	updated, err := svc.UpdateProvider(context.Background(), 1, provider.ID, service.UpdateProviderParams{
+	updated, err := svc.UpdateProvider(context.Background(), 1, provider.ID, ai.UpdateProviderParams{
 		ProviderName: &newName,
 		BaseURL:      &newURL,
 	})
@@ -257,7 +257,7 @@ func TestUpdateProviderWithNewAPIKey(t *testing.T) {
 	provider, _ := svc.CreateProvider(context.Background(), 1, "OpenAI", "https://api.openai.com/v1", encKey1)
 
 	encKey2 := encryptWithPublicKey(t, pubPEM, "sk-new-key")
-	updated, err := svc.UpdateProvider(context.Background(), 1, provider.ID, service.UpdateProviderParams{
+	updated, err := svc.UpdateProvider(context.Background(), 1, provider.ID, ai.UpdateProviderParams{
 		EncryptedAPIKey: &encKey2,
 	})
 	if err != nil {
@@ -271,7 +271,7 @@ func TestUpdateProviderWithNewAPIKey(t *testing.T) {
 func TestUpdateDefaultProviderRejected(t *testing.T) {
 	svc, _ := newTestAIService(newMemoryAIProviders(), newMemoryAIModels())
 	name := "NewName"
-	_, err := svc.UpdateProvider(context.Background(), 1, model.DefaultAIProviderID, service.UpdateProviderParams{
+	_, err := svc.UpdateProvider(context.Background(), 1, model.DefaultAIProviderID, ai.UpdateProviderParams{
 		ProviderName: &name,
 	})
 	if err == nil {
@@ -379,7 +379,7 @@ func TestUpdateModel(t *testing.T) {
 	mdl, _ := svc.CreateModel(context.Background(), 1, provider.ID, "gpt-4o")
 
 	newName := "gpt-4o-mini"
-	updated, err := svc.UpdateModel(context.Background(), 1, mdl.ID, service.UpdateModelParams{ModelName: &newName})
+	updated, err := svc.UpdateModel(context.Background(), 1, mdl.ID, ai.UpdateModelParams{ModelName: &newName})
 	if err != nil {
 		t.Fatalf("update model: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestUpdateModel(t *testing.T) {
 func TestUpdateDefaultModelRejected(t *testing.T) {
 	svc, _ := newTestAIService(newMemoryAIProviders(), newMemoryAIModels())
 	name := "new-name"
-	_, err := svc.UpdateModel(context.Background(), 1, model.DefaultAIModelID, service.UpdateModelParams{ModelName: &name})
+	_, err := svc.UpdateModel(context.Background(), 1, model.DefaultAIModelID, ai.UpdateModelParams{ModelName: &name})
 	if err == nil {
 		t.Fatal("updating default model should fail")
 	}

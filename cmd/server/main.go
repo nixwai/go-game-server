@@ -11,16 +11,15 @@ import (
 
 	"github.com/nixwai/go-game-server/app/bootstrap"
 	"github.com/nixwai/go-game-server/app/config"
+	"github.com/nixwai/go-game-server/app/router"
 )
 
 // main 加载配置、连接数据库、组装应用并运行 HTTP 服务，统一处理启动、运行和关闭错误。
 func main() {
-	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
 		fatal(fmt.Errorf("load config: %w", err))
 	}
-	// 连接数据库
 	db, err := bootstrap.OpenDB(cfg.MySQLDSN)
 	if err != nil {
 		fatal(err)
@@ -30,14 +29,13 @@ func main() {
 			fatal(closeErr)
 		}
 	}()
-	// 初始化服务
-	application, err := bootstrap.New(cfg, db)
+	deps, err := bootstrap.NewDeps(cfg, db)
 	if err != nil {
 		fatal(err)
 	}
+	application := bootstrap.New(cfg, router.New(deps))
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	// 运行服务
 	if err := application.Run(ctx); err != nil {
 		fatal(err)
 	}

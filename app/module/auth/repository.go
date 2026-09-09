@@ -1,5 +1,4 @@
-// Package repository 封装用户数据的持久化访问。
-package repository
+package auth
 
 import (
 	"context"
@@ -8,13 +7,6 @@ import (
 
 	"github.com/nixwai/go-game-server/app/model"
 	"gorm.io/gorm"
-)
-
-var (
-	// ErrNotFound 表示查询不到指定用户。
-	ErrNotFound = errors.New("user not found")
-	// ErrDuplicate 表示用户名违反唯一约束。
-	ErrDuplicate = errors.New("user already exists")
 )
 
 // UserRepository 定义用户数据访问边界。
@@ -29,19 +21,20 @@ type UserRepository interface {
 
 // GormUserRepository 是基于 GORM 的 UserRepository 实现。
 type GormUserRepository struct {
-	// db 是由应用启动阶段注入的 GORM 数据库连接。
 	db *gorm.DB
 }
 
 // NewGormUserRepository 创建 GORM 用户仓储。
-func NewGormUserRepository(db *gorm.DB) *GormUserRepository { return &GormUserRepository{db: db} }
+func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
+	return &GormUserRepository{db: db}
+}
 
 // FindByUsername 根据用户名查询用户。
 func (r *GormUserRepository) FindByUsername(ctx context.Context, username string) (model.User, error) {
 	var user model.User
 	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return model.User{}, ErrNotFound
+		return model.User{}, model.ErrNotFound
 	}
 	return user, err
 }
@@ -51,7 +44,7 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id uint64) (model.Use
 	var user model.User
 	err := r.db.WithContext(ctx).First(&user, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return model.User{}, ErrNotFound
+		return model.User{}, model.ErrNotFound
 	}
 	return user, err
 }
@@ -60,7 +53,7 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id uint64) (model.Use
 func (r *GormUserRepository) Create(ctx context.Context, user *model.User) error {
 	err := r.db.WithContext(ctx).Create(user).Error
 	if err != nil && isDuplicate(err) {
-		return ErrDuplicate
+		return model.ErrDuplicate
 	}
 	return err
 }

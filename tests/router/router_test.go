@@ -11,13 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nixwai/go-game-server/app/config"
-	"github.com/nixwai/go-game-server/app/handler"
+	"github.com/nixwai/go-game-server/app/ginext"
+
+	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/model"
-	"github.com/nixwai/go-game-server/app/repository"
+	ai "github.com/nixwai/go-game-server/app/module/ai"
+	auth "github.com/nixwai/go-game-server/app/module/auth"
+
 	"github.com/nixwai/go-game-server/app/response"
-	"github.com/nixwai/go-game-server/app/router"
 	"github.com/nixwai/go-game-server/app/security"
-	"github.com/nixwai/go-game-server/app/service"
 )
 
 type testRepo struct {
@@ -28,7 +30,7 @@ type testRepo struct {
 func (r *testRepo) FindByUsername(_ context.Context, name string) (model.User, error) {
 	u, ok := r.users[name]
 	if !ok {
-		return model.User{}, repository.ErrNotFound
+		return model.User{}, model.ErrNotFound
 	}
 	return u, nil
 }
@@ -38,27 +40,38 @@ func (r *testRepo) FindByID(_ context.Context, id uint64) (model.User, error) {
 			return u, nil
 		}
 	}
-	return model.User{}, repository.ErrNotFound
+	return model.User{}, model.ErrNotFound
 }
 func (r *testRepo) Create(_ context.Context, u *model.User) error {
 	if _, ok := r.users[u.Username]; ok {
-		return repository.ErrDuplicate
+		return model.ErrDuplicate
 	}
 	u.ID = r.next
 	r.next++
 	r.users[u.Username] = *u
 	return nil
 }
+
 func newRouterForTest() (*gin.Engine, *security.TokenManager) {
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
-	svc := service.NewAuthService(repo, hasher, tokens)
+	authSvc := auth.NewService(repo, hasher, tokens)
+	authH := auth.NewHandler(authSvc)
 	crypto, _ := security.NewCryptoManager("MDEyMzQ1Njc4OWFiY2RlZmdoMTIzNDU2Nzg5YWJjZGVmZ2g=")
-	aiSvc := service.NewAIService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})
-	aiHandler := handler.NewAIHandler(aiSvc, crypto)
-	return router.New(handler.NewAuthHandler(svc), aiHandler, tokens), tokens
+	aiSvc := ai.NewService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})
+	aiH := ai.NewHandler(aiSvc, crypto)
+
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestID())
+	r.GET("/health", ginext.Wrap(func(c *gin.Context) (gin.H, error) { return gin.H{"status": "ok"}, nil }))
+	r.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
+	api := r.Group("/api/v1")
+	auth.RegisterRoutes(api, authH, tokens)
+	ai.RegisterRoutes(api, aiH, tokens)
+	return r, tokens
 }
+
 func request(r http.Handler, method, path, body, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

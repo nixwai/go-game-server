@@ -1,5 +1,4 @@
-// Package service 实现认证相关业务规则。
-package service
+package auth
 
 import (
 	"context"
@@ -9,36 +8,30 @@ import (
 	"unicode"
 
 	"github.com/nixwai/go-game-server/app/model"
-	"github.com/nixwai/go-game-server/app/repository"
 	"github.com/nixwai/go-game-server/app/response"
 	"github.com/nixwai/go-game-server/app/security"
 )
 
-// AuthService 编排用户注册、登录和当前用户查询。
-type AuthService struct {
-	// users 是用户数据访问接口。
-	users repository.UserRepository
-	// hasher 负责密码哈希和校验。
+// Service 编排用户注册、登录和当前用户查询。
+type Service struct {
+	users  UserRepository
 	hasher security.PasswordHasher
-	// tokens 负责生成登录后的 JWT。
 	tokens *security.TokenManager
 }
 
 // LoginResult 是登录成功后返回的令牌和用户信息。
 type LoginResult struct {
-	// Token 是客户端后续请求使用的 Bearer Access Token。
 	Token string
-	// User 是服务层返回的持久化用户实体。
-	User model.User
+	User  model.User
 }
 
-// NewAuthService 创建认证服务，并注入其外部依赖。
-func NewAuthService(users repository.UserRepository, hasher security.PasswordHasher, tokens *security.TokenManager) *AuthService {
-	return &AuthService{users: users, hasher: hasher, tokens: tokens}
+// NewService 创建认证服务，并注入其外部依赖。
+func NewService(users UserRepository, hasher security.PasswordHasher, tokens *security.TokenManager) *Service {
+	return &Service{users: users, hasher: hasher, tokens: tokens}
 }
 
 // Register 校验并创建普通用户。
-func (s *AuthService) Register(ctx context.Context, username, password string) (model.User, error) {
+func (s *Service) Register(ctx context.Context, username, password string) (model.User, error) {
 	if err := validateUsername(username); err != nil {
 		return model.User{}, err
 	}
@@ -51,7 +44,7 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 	}
 	user := model.User{Username: strings.TrimSpace(username), PasswordHash: hash, Role: model.RoleUser, Status: model.StatusActive}
 	if err := s.users.Create(ctx, &user); err != nil {
-		if errors.Is(err, repository.ErrDuplicate) {
+		if errors.Is(err, model.ErrDuplicate) {
 			return model.User{}, response.NewError(response.CodeConflict, "用户名已存在", err)
 		}
 		return model.User{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
@@ -60,12 +53,11 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 }
 
 // Login 校验用户名密码和用户状态，成功后签发 JWT。
-func (s *AuthService) Login(ctx context.Context, username, password string) (LoginResult, error) {
+func (s *Service) Login(ctx context.Context, username, password string) (LoginResult, error) {
 	if err := validateUsername(username); err != nil {
 		return LoginResult{}, err
 	}
 	user, err := s.users.FindByUsername(ctx, strings.TrimSpace(username))
-	// 用户不存在、密码错误和禁用状态返回相同错误。
 	if err != nil || user.Status != model.StatusActive || !s.hasher.Compare(password, user.PasswordHash) {
 		return LoginResult{}, response.NewError(response.CodeAuthFailed, "用户名或密码错误", nil)
 	}
@@ -77,7 +69,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (Log
 }
 
 // CurrentUser 根据用户 ID 查询当前用户信息。
-func (s *AuthService) CurrentUser(ctx context.Context, userID uint64) (model.User, error) {
+func (s *Service) CurrentUser(ctx context.Context, userID uint64) (model.User, error) {
 	user, err := s.users.FindByID(ctx, userID)
 	if err != nil || user.Status != model.StatusActive {
 		return model.User{}, response.NewError(response.CodeNotFound, "用户不存在", nil)

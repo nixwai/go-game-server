@@ -12,7 +12,7 @@ import (
 	"github.com/nixwai/go-game-server/app/config"
 	"github.com/nixwai/go-game-server/app/database"
 	"github.com/nixwai/go-game-server/app/model"
-	"github.com/nixwai/go-game-server/app/repository"
+	auth "github.com/nixwai/go-game-server/app/module/auth"
 	"github.com/nixwai/go-game-server/app/security"
 	"golang.org/x/term"
 )
@@ -52,7 +52,7 @@ func main() {
 		fail(err)
 	}
 
-	repo := repository.NewGormUserRepository(db)
+	repo := auth.NewGormUserRepository(db)
 	user := model.User{Username: strings.TrimSpace(username), PasswordHash: hash, Role: model.RoleAdmin, Status: model.StatusActive}
 	if err := repo.Create(context.Background(), &user); err != nil {
 		fail(err)
