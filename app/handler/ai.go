@@ -3,7 +3,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	ai "github.com/nixwai/go-game-server/app/dto/ai"
+	"github.com/nixwai/go-game-server/app/dto/ai"
 	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/response"
@@ -25,22 +25,20 @@ func NewAIHandler(svc *service.AIService, crypto *security.CryptoManager) *AIHan
 }
 
 // PublicKey 返回 RSA 公钥的 PEM 字符串，供前端加密 API Key 使用。
-func (h *AIHandler) PublicKey(c *gin.Context) {
+func (h *AIHandler) PublicKey(c *gin.Context) (gin.H, error) {
 	pem, err := h.crypto.PublicKeyPEM()
 	if err != nil {
-		response.WriteError(c, response.NewError(response.CodeInternal, "服务器内部错误", err))
-		return
+		return nil, response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
-	response.Write(c, response.CodeOK, "成功", gin.H{"public_key": pem})
+	return gin.H{"public_key": pem}, nil
 }
 
 // ListProviders 返回当前用户的所有产商配置和模型，列表头部插入只读默认 AI。
-func (h *AIHandler) ListProviders(c *gin.Context) {
+func (h *AIHandler) ListProviders(c *gin.Context) ([]ai.ProviderResponse, error) {
 	userID := middleware.GetUserID(c)
 	list, err := h.svc.ListProviders(c.Request.Context(), userID)
 	if err != nil {
-		response.WriteError(c, err)
-		return
+		return nil, err
 	}
 	// 构建用户产商响应列表。
 	result := make([]ai.ProviderResponse, 0, len(list)+1)
@@ -65,23 +63,21 @@ func (h *AIHandler) ListProviders(c *gin.Context) {
 		Status:    model.StatusActive,
 	}
 	defaultResp := ai.NewProviderResponse(defaultProvider, []ai.ModelResponse{ai.NewModelResponse(defaultModel, true)}, true, defaultAI.APIKey != "")
-	result = append([]ai.ProviderResponse{defaultResp}, result...)
-	response.Write(c, response.CodeOK, "成功", result)
+	return append([]ai.ProviderResponse{defaultResp}, result...), nil
 }
 
-// CreateProvider 处理新增 AI 产商请求。
-func (h *AIHandler) CreateProvider(c *gin.Context, req ai.CreateProviderRequest) {
+// CreateProvider 处理新增 AI 产商请求，返回创建后的产商信息。
+func (h *AIHandler) CreateProvider(c *gin.Context, req ai.CreateProviderRequest) (ai.ProviderResponse, error) {
 	userID := middleware.GetUserID(c)
 	provider, err := h.svc.CreateProvider(c.Request.Context(), userID, req.ProviderName, req.BaseURL, req.EncryptedAPIKey)
 	if err != nil {
-		response.WriteError(c, err)
-		return
+		return ai.ProviderResponse{}, err
 	}
-	response.Write(c, response.CodeOK, "成功", ai.NewProviderResponse(provider, nil, false, provider.APIKeyEncrypted != ""))
+	return ai.NewProviderResponse(provider, nil, false, provider.APIKeyEncrypted != ""), nil
 }
 
-// UpdateProvider 处理更新 AI 产商请求。
-func (h *AIHandler) UpdateProvider(c *gin.Context, req ai.UpdateProviderRequest) {
+// UpdateProvider 处理更新 AI 产商请求，返回更新后的产商信息。
+func (h *AIHandler) UpdateProvider(c *gin.Context, req ai.UpdateProviderRequest) (ai.ProviderResponse, error) {
 	userID := middleware.GetUserID(c)
 	params := service.UpdateProviderParams{
 		ProviderName:    req.ProviderName,
@@ -91,51 +87,46 @@ func (h *AIHandler) UpdateProvider(c *gin.Context, req ai.UpdateProviderRequest)
 	}
 	provider, err := h.svc.UpdateProvider(c.Request.Context(), userID, req.ID, params)
 	if err != nil {
-		response.WriteError(c, err)
-		return
+		return ai.ProviderResponse{}, err
 	}
-	response.Write(c, response.CodeOK, "成功", ai.NewProviderResponse(provider, nil, false, provider.APIKeyEncrypted != ""))
+	return ai.NewProviderResponse(provider, nil, false, provider.APIKeyEncrypted != ""), nil
 }
 
 // DeleteProvider 处理删除 AI 产商请求。
-func (h *AIHandler) DeleteProvider(c *gin.Context, req ai.DeleteProviderRequest) {
+func (h *AIHandler) DeleteProvider(c *gin.Context, req ai.DeleteProviderRequest) (any, error) {
 	userID := middleware.GetUserID(c)
 	if err := h.svc.DeleteProvider(c.Request.Context(), userID, req.ID); err != nil {
-		response.WriteError(c, err)
-		return
+		return nil, err
 	}
-	response.Write(c, response.CodeOK, "成功", nil)
+	return nil, nil
 }
 
-// CreateModel 处理新增 AI 模型请求。
-func (h *AIHandler) CreateModel(c *gin.Context, req ai.CreateModelRequest) {
+// CreateModel 处理新增 AI 模型请求，返回创建后的模型信息。
+func (h *AIHandler) CreateModel(c *gin.Context, req ai.CreateModelRequest) (ai.ModelResponse, error) {
 	userID := middleware.GetUserID(c)
 	mdl, err := h.svc.CreateModel(c.Request.Context(), userID, req.ProviderID, req.ModelName)
 	if err != nil {
-		response.WriteError(c, err)
-		return
+		return ai.ModelResponse{}, err
 	}
-	response.Write(c, response.CodeOK, "成功", ai.NewModelResponse(mdl, false))
+	return ai.NewModelResponse(mdl, false), nil
 }
 
-// UpdateModel 处理更新 AI 模型请求。
-func (h *AIHandler) UpdateModel(c *gin.Context, req ai.UpdateModelRequest) {
+// UpdateModel 处理更新 AI 模型请求，返回更新后的模型信息。
+func (h *AIHandler) UpdateModel(c *gin.Context, req ai.UpdateModelRequest) (ai.ModelResponse, error) {
 	userID := middleware.GetUserID(c)
 	params := service.UpdateModelParams{ModelName: req.ModelName, Status: req.Status}
 	mdl, err := h.svc.UpdateModel(c.Request.Context(), userID, req.ID, params)
 	if err != nil {
-		response.WriteError(c, err)
-		return
+		return ai.ModelResponse{}, err
 	}
-	response.Write(c, response.CodeOK, "成功", ai.NewModelResponse(mdl, false))
+	return ai.NewModelResponse(mdl, false), nil
 }
 
 // DeleteModel 处理删除 AI 模型请求。
-func (h *AIHandler) DeleteModel(c *gin.Context, req ai.DeleteModelRequest) {
+func (h *AIHandler) DeleteModel(c *gin.Context, req ai.DeleteModelRequest) (any, error) {
 	userID := middleware.GetUserID(c)
 	if err := h.svc.DeleteModel(c.Request.Context(), userID, req.ID); err != nil {
-		response.WriteError(c, err)
-		return
+		return nil, err
 	}
-	response.Write(c, response.CodeOK, "成功", nil)
+	return nil, nil
 }

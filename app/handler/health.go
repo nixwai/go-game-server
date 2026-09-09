@@ -1,12 +1,9 @@
 // Package handler 将 HTTP 请求转换为健康检查响应。
 package handler
 
-import (
-	"github.com/gin-gonic/gin"
-	"github.com/nixwai/go-game-server/app/response"
-)
+import "github.com/gin-gonic/gin"
 
 // Health 返回服务存活状态，不需要身份认证。
-func Health(c *gin.Context) {
-	response.Write(c, response.CodeOK, "成功", gin.H{"status": "ok"})
+func Health(c *gin.Context) (gin.H, error) {
+	return gin.H{"status": "ok"}, nil
 }

@@ -14,26 +14,26 @@ func New(authHandler *handler.AuthHandler, aiHandler *handler.AIHandler, tokens 
 	r := gin.New()
 	// Recovery 防止未处理 panic 终止进程，RequestID 为日志和客户端提供关联标识。
 	r.Use(gin.Recovery(), middleware.RequestID())
-	r.GET("/health", handler.Health)
+	r.GET("/health", ginext.Wrap(handler.Health))
 	r.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
 
 	api := r.Group("/api/v1")
 	auth := api.Group("/auth")
-	auth.POST("/register", ginext.BindJSON(authHandler.Register))
-	auth.POST("/login", ginext.BindJSON(authHandler.Login))
-	auth.GET("/me", middleware.AuthRequired(tokens), authHandler.Me)
-	api.GET("/admin/ping", middleware.AuthRequired(tokens), middleware.AdminOnly(), authHandler.AdminPing)
+	auth.POST("/register", ginext.WrapJSON(authHandler.Register))
+	auth.POST("/login", ginext.WrapJSON(authHandler.Login))
+	auth.GET("/me", middleware.AuthRequired(tokens), ginext.Wrap(authHandler.Me))
+	api.GET("/admin/ping", middleware.AuthRequired(tokens), middleware.AdminOnly(), ginext.Wrap(authHandler.AdminPing))
 
 	// AI 模型管理路由组，全部需要 JWT 认证。
 	aiGroup := api.Group("/ai", middleware.AuthRequired(tokens))
-	aiGroup.GET("/public-key", aiHandler.PublicKey)
-	aiGroup.GET("/providers/list", aiHandler.ListProviders)
-	aiGroup.POST("/providers/create", ginext.BindJSON(aiHandler.CreateProvider))
-	aiGroup.POST("/providers/update", ginext.BindJSON(aiHandler.UpdateProvider))
-	aiGroup.POST("/providers/delete", ginext.BindJSON(aiHandler.DeleteProvider))
-	aiGroup.POST("/models/create", ginext.BindJSON(aiHandler.CreateModel))
-	aiGroup.POST("/models/update", ginext.BindJSON(aiHandler.UpdateModel))
-	aiGroup.POST("/models/delete", ginext.BindJSON(aiHandler.DeleteModel))
+	aiGroup.GET("/public-key", ginext.Wrap(aiHandler.PublicKey))
+	aiGroup.GET("/providers/list", ginext.Wrap(aiHandler.ListProviders))
+	aiGroup.POST("/providers/create", ginext.WrapJSON(aiHandler.CreateProvider))
+	aiGroup.POST("/providers/update", ginext.WrapJSON(aiHandler.UpdateProvider))
+	aiGroup.POST("/providers/delete", ginext.WrapJSON(aiHandler.DeleteProvider))
+	aiGroup.POST("/models/create", ginext.WrapJSON(aiHandler.CreateModel))
+	aiGroup.POST("/models/update", ginext.WrapJSON(aiHandler.UpdateModel))
+	aiGroup.POST("/models/delete", ginext.WrapJSON(aiHandler.DeleteModel))
 
 	return r
 }
