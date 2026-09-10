@@ -13,7 +13,7 @@ type UpdateProviderRequest struct {
 	ProviderName    *string `json:"provider_name,omitempty"`
 	BaseURL         *string `json:"base_url,omitempty"`
 	EncryptedAPIKey *string `json:"encrypted_api_key,omitempty"`
-	Status          *string `json:"status,omitempty"`
+	Status          *string `json:"status,omitempty" binding:"omitempty,oneof=active disabled"`
 }
 
 // DeleteProviderRequest 是删除 AI 产商配置的请求。
@@ -31,7 +31,7 @@ type CreateModelRequest struct {
 type UpdateModelRequest struct {
 	ID        uint64  `json:"id"`
 	ModelName *string `json:"model_name,omitempty"`
-	Status    *string `json:"status,omitempty"`
+	Status    *string `json:"status,omitempty" binding:"omitempty,oneof=active disabled"`
 }
 
 // DeleteModelRequest 是删除 AI 模型配置的请求。

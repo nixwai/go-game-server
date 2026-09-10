@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	"github.com/nixwai/go-game-server/app/config"
@@ -129,9 +128,6 @@ func (s *Service) UpdateProvider(ctx context.Context, userID, providerID uint64,
 		provider.BaseURL = strings.TrimSpace(*req.BaseURL)
 	}
 	if req.Status != nil {
-		if err := validateStatus(*req.Status); err != nil {
-			return model.AIProvider{}, err
-		}
 		provider.Status = *req.Status
 	}
 	if req.EncryptedAPIKey != nil && *req.EncryptedAPIKey != "" {
@@ -216,9 +212,6 @@ func (s *Service) UpdateModel(ctx context.Context, userID, modelID uint64, req U
 		mdl.ModelName = strings.TrimSpace(*req.ModelName)
 	}
 	if req.Status != nil {
-		if err := validateStatus(*req.Status); err != nil {
-			return model.AIModel{}, err
-		}
 		mdl.Status = *req.Status
 	}
 	if err := s.models.Update(ctx, &mdl); err != nil {
@@ -253,47 +246,6 @@ func (s *Service) assertProviderOwned(ctx context.Context, userID, providerID ui
 	}
 	if provider.UserID != userID {
 		return response.NewError(response.CodeNotFound, "产商不存在", nil)
-	}
-	return nil
-}
-
-func validateProviderName(name string) error {
-	name = strings.TrimSpace(name)
-	if len(name) < 1 || len(name) > 128 {
-		return response.NewError(response.CodeValidation, "产商名称长度必须在 1-128 字符之间", nil)
-	}
-	return nil
-}
-
-func validateBaseURL(rawURL string) error {
-	rawURL = strings.TrimSpace(rawURL)
-	if len(rawURL) < 1 || len(rawURL) > 512 {
-		return response.NewError(response.CodeValidation, "Base URL 长度必须在 1-512 字符之间", nil)
-	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return response.NewError(response.CodeValidation, "Base URL 格式无效", nil)
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return response.NewError(response.CodeValidation, "Base URL 必须以 http 或 https 开头", nil)
-	}
-	if parsed.Host == "" {
-		return response.NewError(response.CodeValidation, "Base URL 缺少主机地址", nil)
-	}
-	return nil
-}
-
-func validateModelName(name string) error {
-	name = strings.TrimSpace(name)
-	if len(name) < 1 || len(name) > 128 {
-		return response.NewError(response.CodeValidation, "模型名称长度必须在 1-128 字符之间", nil)
-	}
-	return nil
-}
-
-func validateStatus(status string) error {
-	if status != model.StatusActive && status != model.StatusDisabled {
-		return response.NewError(response.CodeValidation, "状态值无效", nil)
 	}
 	return nil
 }
