@@ -61,6 +61,10 @@ func (m *memAIProviders) Delete(_ context.Context, id uint64) error {
 	delete(m.byID, id)
 	return nil
 }
+func (m *memAIProviders) DeleteWithModels(_ context.Context, providerID uint64) error {
+	delete(m.byID, providerID)
+	return nil
+}
 
 type memAIModels struct {
 	byID map[uint64]model.AIModel

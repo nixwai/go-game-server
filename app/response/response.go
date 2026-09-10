@@ -3,6 +3,7 @@ package response
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -81,8 +82,19 @@ func Write(c *gin.Context, code int, message string, data any) {
 func WriteError(c *gin.Context, err error) {
 	var appErr *AppError
 	if errors.As(err, &appErr) {
+		if appErr.Err != nil {
+			slog.Error("request error",
+				"code", appErr.Code,
+				"request_id", c.GetString("request_id"),
+				"error", appErr.Err,
+			)
+		}
 		Write(c, appErr.Code, appErr.Message, nil)
 		return
 	}
+	slog.Error("unexpected error",
+		"request_id", c.GetString("request_id"),
+		"error", err,
+	)
 	Write(c, CodeInternal, "服务器内部错误", nil)
 }

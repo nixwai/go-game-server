@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/nixwai/go-game-server/app/config"
@@ -125,7 +126,7 @@ func (s *Service) UpdateProvider(ctx context.Context, userID, providerID uint64,
 	return provider, nil
 }
 
-// DeleteProvider 校验归属权，级联删除产商和关联模型；默认产商不可删除。
+// DeleteProvider 校验归属权，在单个事务中删除产商及其全部模型。
 func (s *Service) DeleteProvider(ctx context.Context, userID, providerID uint64) error {
 	if providerID == model.DefaultAIProviderID {
 		return response.NewError(response.CodeDefaultAIReadOnly, "默认 AI 配置不可删除", nil)
@@ -137,10 +138,7 @@ func (s *Service) DeleteProvider(ctx context.Context, userID, providerID uint64)
 	if provider.UserID != userID {
 		return response.NewError(response.CodeNotFound, "产商不存在", nil)
 	}
-	if err := s.models.DeleteByProviderID(ctx, providerID); err != nil {
-		return response.NewError(response.CodeInternal, "服务器内部错误", err)
-	}
-	if err := s.providers.Delete(ctx, providerID); err != nil {
+	if err := s.providers.DeleteWithModels(ctx, providerID); err != nil {
 		return response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
 	return nil
@@ -233,10 +231,20 @@ func validateProviderName(name string) error {
 	return nil
 }
 
-func validateBaseURL(url string) error {
-	url = strings.TrimSpace(url)
-	if len(url) < 1 || len(url) > 512 {
+func validateBaseURL(rawURL string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if len(rawURL) < 1 || len(rawURL) > 512 {
 		return response.NewError(response.CodeValidation, "Base URL 长度必须在 1-512 字符之间", nil)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return response.NewError(response.CodeValidation, "Base URL 格式无效", nil)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return response.NewError(response.CodeValidation, "Base URL 必须以 http 或 https 开头", nil)
+	}
+	if parsed.Host == "" {
+		return response.NewError(response.CodeValidation, "Base URL 缺少主机地址", nil)
 	}
 	return nil
 }

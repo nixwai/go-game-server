@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"errors"
-	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/nixwai/go-game-server/app/model"
 	"gorm.io/gorm"
 )
@@ -72,8 +72,11 @@ func (r *GormUserRepository) UpdatePassword(ctx context.Context, id uint64, pass
 	return nil
 }
 
-// isDuplicate 识别 MySQL 驱动返回的唯一键冲突错误。
+// isDuplicate 通过 MySQL 驱动错误码识别唯一键冲突。
 func isDuplicate(err error) bool {
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "duplicate") || strings.Contains(message, "1062")
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+		return true
+	}
+	return false
 }

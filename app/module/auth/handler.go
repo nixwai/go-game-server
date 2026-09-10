@@ -73,7 +73,7 @@ func (h *Handler) Me(c *gin.Context) (dto.UserResponse, error) {
 }
 
 // ChangePassword 处理当前用户修改密码请求，解密新旧密码后调用 Service。
-func (h *Handler) ChangePassword(c *gin.Context, req dto.ChangePasswordRequest) (any, error) {
+func (h *Handler) ChangePassword(c *gin.Context, req dto.ChangePasswordRequest) (gin.H, error) {
 	userID := middleware.GetUserID(c)
 	oldPassword, err := h.decrypter.DecryptTransport(req.OldPassword)
 	if err != nil {
@@ -86,7 +86,7 @@ func (h *Handler) ChangePassword(c *gin.Context, req dto.ChangePasswordRequest) 
 	if err := h.service.ChangePassword(c.Request.Context(), userID, oldPassword, newPassword); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return gin.H{}, nil
 }
 
 // AdminPing 是仅用于验证管理员权限中间件的示例接口。

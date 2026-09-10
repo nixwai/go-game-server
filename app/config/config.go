@@ -2,12 +2,11 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
-
-	"encoding/base64"
 )
 
 // Config 是服务运行所需的全部配置。

@@ -75,12 +75,12 @@ func (h *Handler) UpdateProvider(c *gin.Context, req dto.UpdateProviderRequest) 
 }
 
 // DeleteProvider 处理删除 AI 产商请求。
-func (h *Handler) DeleteProvider(c *gin.Context, req dto.DeleteProviderRequest) (any, error) {
+func (h *Handler) DeleteProvider(c *gin.Context, req dto.DeleteProviderRequest) (gin.H, error) {
 	userID := middleware.GetUserID(c)
 	if err := h.svc.DeleteProvider(c.Request.Context(), userID, req.ID); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return gin.H{}, nil
 }
 
 // CreateModel 处理新增 AI 模型请求，返回创建后的模型信息。
@@ -105,10 +105,10 @@ func (h *Handler) UpdateModel(c *gin.Context, req dto.UpdateModelRequest) (dto.M
 }
 
 // DeleteModel 处理删除 AI 模型请求。
-func (h *Handler) DeleteModel(c *gin.Context, req dto.DeleteModelRequest) (any, error) {
+func (h *Handler) DeleteModel(c *gin.Context, req dto.DeleteModelRequest) (gin.H, error) {
 	userID := middleware.GetUserID(c)
 	if err := h.svc.DeleteModel(c.Request.Context(), userID, req.ID); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return gin.H{}, nil
 }

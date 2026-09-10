@@ -97,8 +97,8 @@ type analyzeResult struct {
 	Vertex *dto.GoVertex
 }
 
-// parseAIResponse 将 LLM 返回文本解析为动作和坐标。
-func parseAIResponse(content string) (analyzeResult, error) {
+// parseAIResponse 将 LLM 返回文本解析为动作和坐标，并校验坐标是否在棋盘范围内。
+func parseAIResponse(content string, size int) (analyzeResult, error) {
 	var raw struct {
 		Action string `json:"action"`
 		Vertex []int  `json:"vertex,omitempty"`
@@ -111,7 +111,11 @@ func parseAIResponse(content string) (analyzeResult, error) {
 		if len(raw.Vertex) != 2 {
 			return analyzeResult{}, fmt.Errorf("vertex must have exactly 2 elements")
 		}
-		v := dto.GoVertex{raw.Vertex[0], raw.Vertex[1]}
+		row, col := raw.Vertex[0], raw.Vertex[1]
+		if row < 0 || row >= size || col < 0 || col >= size {
+			return analyzeResult{}, fmt.Errorf("vertex out of bounds: [%d,%d] for size %d", row, col, size)
+		}
+		v := dto.GoVertex{row, col}
 		return analyzeResult{Action: "move", Vertex: &v}, nil
 	case "end_game":
 		return analyzeResult{Action: "end_game"}, nil

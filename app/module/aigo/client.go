@@ -30,10 +30,14 @@ type LLMClient interface {
 }
 
 // HTTPLLMClient 是基于 net/http 的 OpenAI 兼容 Chat Completions 客户端。
-type HTTPLLMClient struct{}
+type HTTPLLMClient struct {
+	client *http.Client
+}
 
 // NewHTTPLLMClient 创建 HTTP LLM 客户端。
-func NewHTTPLLMClient() *HTTPLLMClient { return &HTTPLLMClient{} }
+func NewHTTPLLMClient() *HTTPLLMClient {
+	return &HTTPLLMClient{client: &http.Client{}}
+}
 
 type chatCompletionRequest struct {
 	Model    string        `json:"model"`
@@ -59,6 +63,9 @@ func (c *HTTPLLMClient) ChatCompletion(ctx context.Context, req ChatRequest) (st
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, req.Timeout)
+	defer cancel()
+
 	url := req.BaseURL + "/chat/completions"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
@@ -67,8 +74,7 @@ func (c *HTTPLLMClient) ChatCompletion(ctx context.Context, req ChatRequest) (st
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+req.APIKey)
 
-	client := &http.Client{Timeout: req.Timeout}
-	resp, err := client.Do(httpReq)
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("call LLM API: %w", err)
 	}

@@ -109,6 +109,10 @@ func (m *memProviders) Delete(_ context.Context, id uint64) error {
 	delete(m.byID, id)
 	return nil
 }
+func (m *memProviders) DeleteWithModels(_ context.Context, providerID uint64) error {
+	delete(m.byID, providerID)
+	return nil
+}
 
 // --- mock ai.ModelRepository ---
 
@@ -310,7 +314,7 @@ func TestUpdateSettingModelNotOwned(t *testing.T) {
 
 func TestAnalyzeDefaultModelMove(t *testing.T) {
 	settings := newMemoryGameSettings()
-	client := &mockLLMClient{content: `{"action":"move","vertex":[5,5]}`}
+	client := &mockLLMClient{content: `{"action":"move","vertex":[1,1]}`}
 	svc := newTestService(newMemProviders(), newMemModels(), settings, client)
 
 	resp, err := svc.Analyze(context.Background(), 1, simpleSnapshot())
@@ -320,7 +324,7 @@ func TestAnalyzeDefaultModelMove(t *testing.T) {
 	if resp.Action != "move" {
 		t.Fatalf("expected action move, got %s", resp.Action)
 	}
-	if resp.Vertex == nil || resp.Vertex[0] != 5 || resp.Vertex[1] != 5 {
+	if resp.Vertex == nil || resp.Vertex[0] != 1 || resp.Vertex[1] != 1 {
 		t.Fatalf("expected vertex [5,5], got %v", resp.Vertex)
 	}
 }
@@ -407,7 +411,7 @@ func TestAnalyzeCustomModel(t *testing.T) {
 	mdl := model.AIModel{ProviderID: provider.ID, ModelName: "gpt-4o", Status: model.StatusActive}
 	models.Create(context.Background(), &mdl)
 
-	client := &mockLLMClient{content: `{"action":"move","vertex":[3,3]}`}
+	client := &mockLLMClient{content: `{"action":"move","vertex":[1,1]}`}
 	svc := newTestService(providers, models, settings, client)
 
 	modelID := mdl.ID

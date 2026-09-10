@@ -53,9 +53,10 @@ func encryptWithPublicKey(t *testing.T, pubKeyPEM string, plaintext string) stri
 // --- 内存仓储 mock ---
 
 type memoryAIProviders struct {
-	byID map[uint64]model.AIProvider
-	next uint64
-	err  error
+	byID   map[uint64]model.AIProvider
+	next   uint64
+	err    error
+	models *memoryAIModels
 }
 
 func newMemoryAIProviders() *memoryAIProviders {
@@ -92,6 +93,13 @@ func (m *memoryAIProviders) Update(_ context.Context, p *model.AIProvider) error
 }
 func (m *memoryAIProviders) Delete(_ context.Context, id uint64) error {
 	delete(m.byID, id)
+	return nil
+}
+func (m *memoryAIProviders) DeleteWithModels(_ context.Context, providerID uint64) error {
+	delete(m.byID, providerID)
+	if m.models != nil {
+		m.models.DeleteByProviderID(context.Background(), providerID)
+	}
 	return nil
 }
 
@@ -143,6 +151,11 @@ func (m *memoryAIModels) DeleteByProviderID(_ context.Context, providerID uint64
 }
 
 func newTestAIService(providers ai.ProviderRepository, models ai.ModelRepository) (*ai.Service, *security.CryptoManager) {
+	if p, ok := providers.(*memoryAIProviders); ok {
+		if mm, ok := models.(*memoryAIModels); ok {
+			p.models = mm
+		}
+	}
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64())
 	defaultAI := config.DefaultAIConfig{
 		ProviderName: "OpenAI",

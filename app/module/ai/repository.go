@@ -15,6 +15,7 @@ type ProviderRepository interface {
 	Create(ctx context.Context, provider *model.AIProvider) error
 	Update(ctx context.Context, provider *model.AIProvider) error
 	Delete(ctx context.Context, id uint64) error
+	DeleteWithModels(ctx context.Context, providerID uint64) error
 }
 
 // ModelRepository 定义 AI 模型配置的数据访问边界。
@@ -62,6 +63,16 @@ func (r *GormProviderRepository) Update(ctx context.Context, provider *model.AIP
 
 func (r *GormProviderRepository) Delete(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Delete(&model.AIProvider{}, id).Error
+}
+
+// DeleteWithModels 在单个事务中删除产商及其全部模型。
+func (r *GormProviderRepository) DeleteWithModels(ctx context.Context, providerID uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("provider_id = ?", providerID).Delete(&model.AIModel{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.AIProvider{}, providerID).Error
+	})
 }
 
 // GormModelRepository 是基于 GORM 的 ModelRepository 实现。

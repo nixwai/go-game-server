@@ -113,7 +113,7 @@ func TestAigoUpdateSettingSuccess(t *testing.T) {
 
 func TestAigoAnalyzeMove(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	mock := &aigoMockLLM{content: `{"action":"move","vertex":[5,5]}`}
+	mock := &aigoMockLLM{content: `{"action":"move","vertex":[1,1]}`}
 	r, tokens := newAIGoRouterForTest(mock)
 	token := generateAITestToken(t, tokens, 1)
 	body := `{"size":3,"layout":[[0,0,0],[0,0,0],[0,0,0]],"player":1}`

@@ -119,7 +119,8 @@ func (s *Service) Analyze(ctx context.Context, userID uint64, req dto.AnalyzeReq
 		return dto.AnalyzeResponse{}, response.NewError(response.CodeAICallFailed, "AI 调用失败", err)
 	}
 
-	result, err := parseAIResponse(content)
+	size, _ := parseSize(req.Size)
+	result, err := parseAIResponse(content, size)
 	if err != nil {
 		return dto.AnalyzeResponse{}, response.NewError(response.CodeAIResponseInvalid, "AI 返回格式无效", err)
 	}
@@ -189,27 +190,33 @@ func (s *Service) validateModelForUser(ctx context.Context, userID, modelID uint
 	if modelID == model.DefaultAIModelID {
 		return nil
 	}
+	_, _, err := s.resolveModelAndProvider(ctx, userID, modelID)
+	return err
+}
+
+// resolveModelAndProvider 校验模型和产商的存在性、归属权和状态，返回合法的模型和产商。
+func (s *Service) resolveModelAndProvider(ctx context.Context, userID, modelID uint64) (model.AIModel, model.AIProvider, error) {
 	mdl, err := s.models.FindByID(ctx, modelID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			return response.NewError(response.CodeNotFound, "模型不存在", err)
+			return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeNotFound, "模型不存在", err)
 		}
-		return response.NewError(response.CodeInternal, "服务器内部错误", err)
+		return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
 	}
 	if mdl.Status != model.StatusActive {
-		return response.NewError(response.CodeModelInactive, "模型已禁用", nil)
+		return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeModelInactive, "模型已禁用", nil)
 	}
 	provider, err := s.providers.FindByID(ctx, mdl.ProviderID)
 	if err != nil {
-		return response.NewError(response.CodeNotFound, "产商不存在", err)
+		return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeNotFound, "产商不存在", err)
 	}
 	if provider.UserID != userID {
-		return response.NewError(response.CodeNotFound, "模型不存在", nil)
+		return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeNotFound, "模型不存在", nil)
 	}
 	if provider.Status != model.StatusActive {
-		return response.NewError(response.CodeModelInactive, "产商已禁用", nil)
+		return model.AIModel{}, model.AIProvider{}, response.NewError(response.CodeModelInactive, "产商已禁用", nil)
 	}
-	return nil
+	return mdl, provider, nil
 }
 
 // resolveAIConfig 解析激活模型对应的 API 调用参数。
@@ -217,25 +224,9 @@ func (s *Service) resolveAIConfig(ctx context.Context, userID, modelID uint64) (
 	if modelID == model.DefaultAIModelID {
 		return s.defaultAI.BaseURL, s.defaultAI.APIKey, s.defaultAI.ModelName, nil
 	}
-	mdl, err := s.models.FindByID(ctx, modelID)
+	mdl, provider, err := s.resolveModelAndProvider(ctx, userID, modelID)
 	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return "", "", "", response.NewError(response.CodeNotFound, "模型不存在", err)
-		}
-		return "", "", "", response.NewError(response.CodeInternal, "服务器内部错误", err)
-	}
-	if mdl.Status != model.StatusActive {
-		return "", "", "", response.NewError(response.CodeModelInactive, "模型已禁用", nil)
-	}
-	provider, err := s.providers.FindByID(ctx, mdl.ProviderID)
-	if err != nil {
-		return "", "", "", response.NewError(response.CodeNotFound, "产商不存在", err)
-	}
-	if provider.UserID != userID {
-		return "", "", "", response.NewError(response.CodeNotFound, "模型不存在", nil)
-	}
-	if provider.Status != model.StatusActive {
-		return "", "", "", response.NewError(response.CodeModelInactive, "产商已禁用", nil)
+		return "", "", "", err
 	}
 	plainKey, err := s.crypto.DecryptFromStorage(provider.APIKeyEncrypted)
 	if err != nil {

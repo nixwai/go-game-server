@@ -31,3 +31,6 @@ type User struct {
 	// UpdatedAt 是用户最后更新时间。
 	UpdatedAt time.Time
 }
+
+// TableName 返回 user 表名。
+func (User) TableName() string { return "user" }
