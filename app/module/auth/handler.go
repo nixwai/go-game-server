@@ -42,6 +42,15 @@ func (h *Handler) Me(c *gin.Context) (dto.UserResponse, error) {
 	return dto.NewUserResponse(user), nil
 }
 
+// ChangePassword 处理当前用户修改密码请求。
+func (h *Handler) ChangePassword(c *gin.Context, req dto.ChangePasswordRequest) (any, error) {
+	userID := middleware.GetUserID(c)
+	if err := h.service.ChangePassword(c.Request.Context(), userID, req.OldPassword, req.NewPassword); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
 // AdminPing 是仅用于验证管理员权限中间件的示例接口。
 func (h *Handler) AdminPing(c *gin.Context) (gin.H, error) {
 	return gin.H{"message": "管理员权限验证通过"}, nil

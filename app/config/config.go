@@ -38,6 +38,8 @@ type Config struct {
 	MasterKey string
 	// DefaultAI 是通过配置文件提供的只读默认 AI 产商和模型，不入数据库。
 	DefaultAI DefaultAIConfig
+	// GoLLMTimeout 是调用 LLM API 的超时时间。
+	GoLLMTimeout time.Duration
 }
 
 // DefaultAIConfig 描述通过环境变量配置的默认 AI 产商和模型。
@@ -63,8 +65,11 @@ func load(requireJWT bool) (Config, error) {
 	if err := LoadDotEnv(); err != nil {
 		return Config{}, err
 	}
-	// 逐项解析配置，任何一个配置格式错误都立即终止启动。
 	expiresIn, err := durationEnv("JWT_EXPIRES_IN", 2*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	goLLMTimeout, err := durationEnv("GO_LLM_TIMEOUT", 30*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -102,6 +107,7 @@ func load(requireJWT bool) (Config, error) {
 		Argon2KeyLen:  keyLen,
 		Argon2SaltLen: saltLen,
 		MasterKey:     os.Getenv("MASTER_KEY"),
+		GoLLMTimeout:  goLLMTimeout,
 		DefaultAI: DefaultAIConfig{
 			ProviderName: env("DEFAULT_AI_PROVIDER", "OpenAI"),
 			BaseURL:      env("DEFAULT_AI_BASE_URL", "https://api.openai.com/v1"),
@@ -118,7 +124,6 @@ func load(requireJWT bool) (Config, error) {
 	if cfg.Argon2Time == 0 || cfg.Argon2Memory < 19*1024 || cfg.Argon2Threads == 0 || cfg.Argon2KeyLen < 16 || cfg.Argon2SaltLen < 16 {
 		return Config{}, fmt.Errorf("invalid Argon2 configuration")
 	}
-	// 校验 AES-256 主密钥：base64 解码后必须恰好为 32 字节。
 	if requireJWT {
 		if cfg.MasterKey == "" {
 			return Config{}, fmt.Errorf("MASTER_KEY is required")

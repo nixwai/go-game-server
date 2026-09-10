@@ -2,9 +2,7 @@
 
 ## 1. 项目介绍
 
-本项目是基于 Go 的认证后端服务，使用 Gin 提供 HTTP API，使用 GORM 访问 MySQL，使用 JWT 完成登录后的身份认证，使用 Argon2id 完成密码哈希。
-
-当前仅实现基础认证能力：健康检查、普通用户注册、用户名密码登录、当前用户信息查询、管理员权限校验和管理员初始化。暂不包含具体业务模块、刷新令牌、邮箱验证和密码找回。
+本项目是基于 Go 的认证后端服务，使用 Gin 提供 HTTP API，GORM 访问 MySQL，JWT 完成身份认证，Argon2id 完成密码哈希。当前包含基础认证、AI 模型配置管理和 AI 围棋对弈模块。
 
 ## 2. 技术栈
 
@@ -33,8 +31,6 @@ app/
   middleware/   请求 ID、JWT、角色权限中间件
   model/        持久化模型、领域常量和跨模块共享错误
   module/       按业务域划分的自包含模块（Handler、Service、Repository、DTO、路由注册）
-    auth/       认证模块
-    ai/         AI 模型管理模块
   response/     统一响应、业务码、错误处理
   router/       路由编排和中间件挂载
   security/     Argon2id、JWT 和 AES/RSA 加解密

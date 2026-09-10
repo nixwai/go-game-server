@@ -17,6 +17,8 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint64) (model.User, error)
 	// Create 创建一条用户记录。
 	Create(ctx context.Context, user *model.User) error
+	// UpdatePassword 更新指定用户的密码哈希。
+	UpdatePassword(ctx context.Context, id uint64, passwordHash string) error
 }
 
 // GormUserRepository 是基于 GORM 的 UserRepository 实现。
@@ -56,6 +58,18 @@ func (r *GormUserRepository) Create(ctx context.Context, user *model.User) error
 		return model.ErrDuplicate
 	}
 	return err
+}
+
+// UpdatePassword 更新指定用户的密码哈希，未匹配到记录时返回 ErrNotFound。
+func (r *GormUserRepository) UpdatePassword(ctx context.Context, id uint64, passwordHash string) error {
+	result := r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Update("password_hash", passwordHash)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+	return nil
 }
 
 // isDuplicate 识别 MySQL 驱动返回的唯一键冲突错误。

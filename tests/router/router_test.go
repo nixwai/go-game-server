@@ -51,6 +51,16 @@ func (r *testRepo) Create(_ context.Context, u *model.User) error {
 	r.users[u.Username] = *u
 	return nil
 }
+func (r *testRepo) UpdatePassword(_ context.Context, id uint64, passwordHash string) error {
+	for name, u := range r.users {
+		if u.ID == id {
+			u.PasswordHash = passwordHash
+			r.users[name] = u
+			return nil
+		}
+	}
+	return model.ErrNotFound
+}
 
 func newRouterForTest() (*gin.Engine, *security.TokenManager) {
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
@@ -131,5 +141,44 @@ func TestAuthRoutes(t *testing.T) {
 	w = request(r, http.MethodGet, "/api/v1/admin/ping", "", adminToken)
 	assertCode(t, w, response.CodeOK)
 	w = request(r, http.MethodGet, "/api/v1/auth/me", "", "bad-token")
+	assertCode(t, w, response.CodeTokenInvalid)
+}
+
+func TestChangePasswordRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r, _ := newRouterForTest()
+
+	w := request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123"}`, "")
+	assertCode(t, w, response.CodeOK)
+
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"SecurePass123"}`, "")
+	assertCode(t, w, response.CodeOK)
+	var payload struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	token := payload.Data.Token
+
+	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
+		`{"old_password":"SecurePass123","new_password":"NewPass456"}`, token)
+	assertCode(t, w, response.CodeOK)
+
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"NewPass456"}`, "")
+	assertCode(t, w, response.CodeOK)
+
+	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
+		`{"old_password":"SecurePass123","new_password":"AnotherPass789"}`, token)
+	assertCode(t, w, response.CodeAuthFailed)
+
+	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
+		`{"old_password":"NewPass456","new_password":"weak"}`, token)
+	assertCode(t, w, response.CodeValidation)
+
+	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
+		`{"old_password":"NewPass456","new_password":"NewPass456"}`, "")
 	assertCode(t, w, response.CodeTokenInvalid)
 }

@@ -50,6 +50,16 @@ func (m *memoryUsers) Create(_ context.Context, user *model.User) error {
 	m.byName[user.Username] = *user
 	return nil
 }
+func (m *memoryUsers) UpdatePassword(_ context.Context, id uint64, passwordHash string) error {
+	for name, user := range m.byName {
+		if user.ID == id {
+			user.PasswordHash = passwordHash
+			m.byName[name] = user
+			return nil
+		}
+	}
+	return model.ErrNotFound
+}
 
 func newTestService(users *memoryUsers) *auth.Service {
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
@@ -136,5 +146,55 @@ func TestDisabledUserCannotLogin(t *testing.T) {
 	users.byName["alice"] = user
 	if _, err := svc.Login(context.Background(), "alice", "SecurePass123"); err == nil {
 		t.Fatal("disabled user should fail")
+	}
+}
+
+func TestChangePasswordSuccess(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestService(users)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.ChangePassword(context.Background(), 1, "SecurePass123", "NewPass456"); err != nil {
+		t.Fatalf("change password failed: %v", err)
+	}
+	if _, err := svc.Login(context.Background(), "alice", "SecurePass123"); err == nil {
+		t.Fatal("old password should fail after change")
+	}
+	result, err := svc.Login(context.Background(), "alice", "NewPass456")
+	if err != nil {
+		t.Fatalf("login with new password failed: %v", err)
+	}
+	if result.Token == "" {
+		t.Fatal("token should be returned")
+	}
+}
+
+func TestChangePasswordWrongOldPassword(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestService(users)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.ChangePassword(context.Background(), 1, "WrongPass123", "NewPass456"); err == nil {
+		t.Fatal("wrong old password should fail")
+	}
+}
+
+func TestChangePasswordInvalidNewPassword(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestService(users)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.ChangePassword(context.Background(), 1, "SecurePass123", "weak"); err == nil {
+		t.Fatal("invalid new password should fail")
+	}
+}
+
+func TestChangePasswordUserNotFound(t *testing.T) {
+	svc := newTestService(newMemoryUsers())
+	if err := svc.ChangePassword(context.Background(), 999, "SecurePass123", "NewPass456"); err == nil {
+		t.Fatal("nonexistent user should fail")
 	}
 }

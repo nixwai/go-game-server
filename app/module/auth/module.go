@@ -35,5 +35,6 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, tokens *security.TokenManag
 	g.POST("/register", ginext.WrapJSON(h.Register))
 	g.POST("/login", ginext.WrapJSON(h.Login))
 	g.GET("/me", middleware.AuthRequired(tokens), ginext.Wrap(h.Me))
+	g.POST("/password/update", middleware.AuthRequired(tokens), ginext.WrapJSON(h.ChangePassword))
 	rg.GET("/admin/ping", middleware.AuthRequired(tokens), middleware.AdminOnly(), ginext.Wrap(h.AdminPing))
 }

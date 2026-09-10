@@ -26,8 +26,11 @@ info:
     | 4004 | 资源不存在 |
     | 4005 | 默认 AI 配置不可修改或删除 |
     | 4006 | API Key 传输解密失败 |
+    | 4007 | 模型或产商已禁用 |
     | 9000 | 服务器内部错误 |
     | 9001 | 加密主密钥未配置或无效 |
+    | 9002 | LLM API 调用失败 |
+    | 9003 | LLM 返回格式无效 |
 servers:
   - url: http://localhost:8080
     description: 本地开发环境
@@ -40,6 +43,8 @@ tags:
     description: 管理员接口
   - name: ai
     description: AI 模型管理接口
+  - name: aigo
+    description: AI 围棋对弈接口
 paths:
   /health:
     get:
@@ -211,6 +216,62 @@ paths:
                   value:
                     code: 4004
                     message: user not found
+  /api/v1/auth/password/update:
+    post:
+      tags: [auth]
+      summary: 修改密码
+      description: |
+        已登录用户修改自己的密码。
+        请求需要携带有效的 JWT，服务端会校验旧密码后更新为新密码。
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              old_password: Secret123
+              new_password: NewSecret456
+      responses:
+        '200':
+          description: 修改成功或业务错误（业务码区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 修改成功
+                  value:
+                    code: 0
+                    message: 成功
+                    data: null
+                oldPasswordWrong:
+                  summary: 原密码错误
+                  value:
+                    code: 2001
+                    message: 原密码错误
+                    data: null
+                tokenMissing:
+                  summary: 未携带令牌
+                  value:
+                    code: 2002
+                    message: 需要认证
+                    data: null
+                tokenInvalid:
+                  summary: 令牌无效或过期
+                  value:
+                    code: 2002
+                    message: 令牌无效
+                    data: null
+                validationFailed:
+                  summary: 新密码格式无效
+                  value:
+                    code: 1001
+                    message: 密码格式无效
                     data: null
   /api/v1/admin/ping:
     get:
@@ -594,6 +655,128 @@ paths:
                 code: 0
                 message: 成功
                 data: null
+  /api/v1/ai/go/setting:
+    get:
+      tags: [aigo]
+      summary: 获取围棋对弈配置
+      description: 返回当前用户的围棋对弈配置，首次访问时自动创建默认配置（active_model_id=0, allow_ai_end_game=true）。
+      operationId: getGoGameSetting
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 对弈配置信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GameSettingResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  active_model_id: 0
+                  allow_ai_end_game: true
+                  model_name: gpt-4o-mini
+                  is_default: true
+                  has_api_key: true
+  /api/v1/ai/go/setting/update:
+    post:
+      tags: [aigo]
+      summary: 更新围棋对弈配置
+      description: 更新用户激活的 AI 模型和对弈配置，所有字段可选，不提供则保留原值。
+      operationId: updateGoGameSetting
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGameSettingRequest'
+            example:
+              active_model_id: 2
+              allow_ai_end_game: false
+      responses:
+        '200':
+          description: 更新成功或失败（业务码区分）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GameSettingResponse'
+  /api/v1/ai/go/analyze:
+    post:
+      tags: [aigo]
+      summary: 分析棋局
+      description: |
+        接收当前棋局快照，调用激活的 AI 模型分析后返回下一步落子坐标或结束申请。
+
+        当 allow_ai_end_game 为 true 时，AI 可返回 {"action":"end_game"} 表示申请数子结束游戏；
+        为 false 时，AI 必须始终返回落子坐标。
+      operationId: analyzeGoGame
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeRequest'
+            example:
+              size: 19
+              layout: [[0,0,0],[0,1,0],[0,0,0]]
+              player: -1
+              latestVertex: [1,1]
+      responses:
+        '200':
+          description: 分析结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AnalyzeResponse'
+              examples:
+                move:
+                  summary: 返回落子坐标
+                  value:
+                    code: 0
+                    message: 成功
+                    data:
+                      action: move
+                      vertex: [5, 5]
+                endGame:
+                  summary: 申请结束游戏
+                  value:
+                    code: 0
+                    message: 成功
+                    data:
+                      action: end_game
+                validationError:
+                  summary: 棋局数据无效
+                  value:
+                    code: 1001
+                    message: 棋盘布局行数与尺寸不匹配
+                    data: null
+                aiCallFailed:
+                  summary: AI 调用失败
+                  value:
+                    code: 9002
+                    message: AI 调用失败
+                    data: null
+
 components:
   securitySchemes:
     bearerAuth:
@@ -645,6 +828,23 @@ components:
           maxLength: 128
           format: password
           description: 用户密码，长度 8-128，必须同时包含字母和数字
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          description: 当前密码，服务端会校验后再允许修改
+          example: Secret123
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          description: 新密码，长度 8-128，必须同时包含字母和数字
           example: Secret123
     LoginRequest:
       type: object
@@ -872,4 +1072,113 @@ components:
           description: 模型配置创建时间
           example: "2026-09-08T12:00:00Z"
 
+
+
+
+
+    AnalyzeRequest:
+      type: object
+      required: [size, layout, player]
+      properties:
+        size:
+          oneOf:
+            - type: integer
+            - type: string
+          description: 棋盘尺寸，可为数字或字符串
+          example: 19
+        layout:
+          type: array
+          description: 棋盘布局，1=黑子，-1=白子，0=空位
+          items:
+            type: array
+            items:
+              type: integer
+              enum: [-1, 0, 1]
+          example: [[0,0,0],[0,1,0],[0,0,0]]
+        player:
+          type: integer
+          enum: [1, -1]
+          description: 当前执棋方
+          example: 1
+        ko:
+          $ref: '#/components/schemas/KoInfo'
+        latestVertex:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+          maxItems: 2
+          description: 最新一手棋子的棋盘坐标
+          example: [1, 1]
+    KoInfo:
+      type: object
+      required: [sign, vertex]
+      properties:
+        sign:
+          type: integer
+          enum: [1, -1]
+          description: 劫子发生的棋子标记
+          example: -1
+        vertex:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+          maxItems: 2
+          description: 劫子发生时的顶点
+          example: [3, 3]
+    UpdateGameSettingRequest:
+      type: object
+      properties:
+        active_model_id:
+          type: integer
+          format: int64
+          description: 激活的 AI 模型 ID，0 表示默认模型
+          example: 2
+        allow_ai_end_game:
+          type: boolean
+          description: 是否允许 AI 申请结束游戏
+          example: false
+    GameSettingResponse:
+      type: object
+      required: [active_model_id, allow_ai_end_game, model_name, is_default, has_api_key]
+      properties:
+        active_model_id:
+          type: integer
+          format: int64
+          description: 激活的 AI 模型 ID，0 表示默认模型
+          example: 0
+        allow_ai_end_game:
+          type: boolean
+          description: 是否允许 AI 申请结束游戏
+          example: true
+        model_name:
+          type: string
+          description: 激活模型的名称
+          example: gpt-4o-mini
+        is_default:
+          type: boolean
+          description: 是否为只读默认模型
+          example: true
+        has_api_key:
+          type: boolean
+          description: 关联产商是否已配置 API Key
+          example: true
+    AnalyzeResponse:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [move, end_game]
+          description: AI 决定的动作
+          example: move
+        vertex:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+          maxItems: 2
+          description: 落子坐标，仅当 action 为 move 时存在
+          example: [5, 5]
 

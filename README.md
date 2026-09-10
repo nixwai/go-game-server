@@ -1,6 +1,6 @@
 # Go Game Server
 
-基于 Go 的认证后端服务，使用 Gin 提供 HTTP API，GORM 访问 MySQL，JWT 完成身份认证，Argon2id 完成密码哈希。
+基于 Go 的后端服务，使用 Gin 提供 HTTP API，GORM 访问 MySQL，JWT 完成身份认证，Argon2id 完成密码哈希。当前包含基础认证、AI 模型配置管理和 AI 围棋对弈模块。
 
 ## 技术栈
 
@@ -13,6 +13,7 @@
 | golang-migrate | 版本化 SQL 迁移 |
 | JWT (HS256) | 登录后身份认证 |
 | Argon2id | 密码哈希 |
+| AES-256-GCM | AI API Key 加密存储 |
 | Docker Compose | 本地 MySQL 环境 |
 | OpenAPI 3.0 | 接口契约文档 |
 
@@ -42,6 +43,8 @@ cp .env.example .env
 - `MYSQL_DSN` — GORM 数据源名称
 - `MYSQL_MIGRATE_URL` — golang-migrate 连接 URL
 - `JWT_SECRET` — 至少 32 字节的高熵随机密钥
+- `MASTER_KEY` — AES-256-GCM 主密钥（base64 编码的 32 字节随机值）
+- `DEFAULT_AI_API_KEY` — 默认 AI 产商的 API Key
 
 > ⚠️ 禁止将真实密钥、密码或连接串提交到代码仓库。`.env` 已在 `.gitignore` 中忽略。
 
@@ -100,15 +103,13 @@ app/
   bootstrap/    应用组装与生命周期管理
   config/       配置加载、校验和 .env 读取
   database/     MySQL 连接初始化
-  handler/      HTTP Handler（参数解析 → 调用 Service → 构造响应）
+  ginext/       Gin 框架扩展工具（统一响应包装）
   middleware/   请求 ID、JWT 鉴权、角色权限
   model/        持久化模型和领域常量（不直接作为 HTTP 响应）
-  dto/          按业务域划分的请求与响应 DTO
-  repository/   数据访问接口与 GORM 实现
+  module/       按业务域划分的自包含模块
   response/     统一响应体、业务码、错误处理
-  router/       路由与中间件注册
-  security/     Argon2id 密码哈希、JWT 签发与校验
-  service/      认证业务逻辑
+  router/       路由编排与中间件挂载
+  security/     Argon2id 密码哈希、JWT 签发与校验、AES 加解密
 migrations/     版本化 SQL 迁移文件
 docs/           OpenAPI 3.0 接口契约文档
 scripts/        辅助脚本（管理员初始化 SQL 模板）
@@ -145,8 +146,52 @@ AGENTS.md
 | `ARGON2_THREADS` | Argon2id 并行线程数 | `4` |
 | `ARGON2_KEY_LEN` | Argon2id 哈希长度（字节） | `32` |
 | `ARGON2_SALT_LEN` | Argon2id 随机盐长度（字节） | `16` |
+| `MASTER_KEY` | AES-256-GCM 主密钥（base64 编码 32 字节） | — |
+| `DEFAULT_AI_PROVIDER` | 默认 AI 产商名称 | `OpenAI` |
+| `DEFAULT_AI_BASE_URL` | 默认 AI 产商 API 地址 | `https://api.openai.com/v1` |
+| `DEFAULT_AI_MODEL` | 默认 AI 模型名称 | `gpt-4o-mini` |
+| `DEFAULT_AI_API_KEY` | 默认产商 API Key（仅存内存） | — |
+| `GO_LLM_TIMEOUT` | LLM API 调用超时 | `30s` |
+
+## API 文档查询
+
+项目使用 OpenAPI 3.0 作为接口契约文档，具体业务接口定义请通过以下方式获取：
+
+### 1. 在线访问
+
+服务启动后，可直接通过 HTTP 获取完整 OpenAPI 文档：
+
+```bash
+curl http://localhost:8080/docs/openapi.yaml
+```
+
+浏览器访问 `http://localhost:8080/docs/openapi.yaml` 即可查看。
+
+### 2. 本地文件
+
+文档源文件位于仓库内：
+
+```
+docs/openapi.yaml
+```
+
+可直接用编辑器或 Swagger Editor 打开查看。
+
+### 3. Swagger UI（可选）
+
+如需可视化交互界面，可使用 Docker 启动 Swagger UI：
+
+```bash
+docker run -p 8081:8080 -e SWAGGER_JSON=/docs/openapi.yaml -v $(pwd)/docs:/docs swaggerapi/swagger-ui
+```
+
+浏览器访问 `http://localhost:8081` 即可查看交互式文档。
+
+> 接口变更时必须同步更新 `docs/openapi.yaml`，文档与代码实现保持一致，禁止提交与实现不一致的文档。
 
 ## 分层架构
+
+每个业务模块自包含 Handler、Service、Repository、DTO 和路由注册，按业务域放在 `app/module/<域名>` 下：
 
 ```text
 HTTP 请求
@@ -174,6 +219,7 @@ Model ── 持久化实体（不直接序列化为 HTTP 响应）
 - Repository 只做数据访问，不承载业务判断
 - `model.User` 禁止直接序列化为接口响应，必须通过 DTO 映射脱敏（`PasswordHash` 永不出现在响应中）
 - 统一响应和业务码复用 `app/response`
+- 跨模块共享的数据访问错误复用 `app/model`
 
 ## 响应格式
 
@@ -182,11 +228,12 @@ Model ── 持久化实体（不直接序列化为 HTTP 响应）
 ```json
 {
   "code": 0,
-  "message": "success",
-  "data": {},
-  "request_id": "..."
+  "message": "成功",
+  "data": {}
 }
 ```
+
+请求追踪 ID 通过 `X-Request-ID` 响应头返回，不在响应体中包含。客户端可通过 `X-Request-ID` 请求头传入自定义追踪 ID，服务端原样回写。
 
 业务码区间：
 
@@ -206,7 +253,7 @@ Model ── 持久化实体（不直接序列化为 HTTP 响应）
 - 表名统一使用**单数形式**（`user`，非 `users`）
 - GORM 连接启用 `SingularTable: true`
 - 迁移 SQL、索引和约束命名与表名保持一致
-- **禁止使用数据库外键约束**（FOREIGN KEY），表间关联关系由应用层维护，保证数据完整性与水平扩展能力
+- **禁止使用数据库外键约束**（FOREIGN KEY），表间关联关系由应用层维护
 - 应用启动不会自动修改数据库结构，必须显式执行迁移
 
 ## 测试
@@ -245,13 +292,12 @@ go test -cover ./...
 
 ```text
 tests/
-  config/         配置加载与 .env 测试
-  dto/            DTO 映射测试
-  response/       统一响应与业务码测试
-  security/       Argon2id 与 JWT 测试
-  service/        认证业务逻辑测试
-  router/         路由与中间件测试
-  bootstrap/      应用启动测试
+  config/                 配置加载与 .env 测试
+  response/               统一响应与业务码测试
+  security/               Argon2id、JWT 与 AES 加解密测试
+  bootstrap/              应用启动测试
+  module/                 模块测试
+  router/                 路由与中间件测试
   mysql_integration_test.go  数据库集成测试
 ```
 
@@ -261,9 +307,10 @@ tests/
 - JWT 强制校验签名算法（HS256）、签发方、过期时间
 - 注册接口不允许客户端创建管理员
 - 禁用用户不能登录
-- 登录失败不暴露用户是否存在（统一返回 `invalid username or password`）
+- 登录失败不暴露用户是否存在（统一返回 `用户名或密码错误`）
 - 所有数据库查询使用参数化条件
 - 密码、哈希、JWT、连接串不写入日志
+- AI API Key 通过 AES-256-GCM 加密存储，传输时使用 RSA 公钥加密
 - 错误响应不暴露内部堆栈
 - 所有外部输入在 Service 边界校验
 - 生产环境必须使用 HTTPS，并在网关层补充限流和安全响应头

@@ -7,6 +7,7 @@ import (
 	"github.com/nixwai/go-game-server/app/ginext"
 	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/module/ai"
+	"github.com/nixwai/go-game-server/app/module/aigo"
 	"github.com/nixwai/go-game-server/app/module/auth"
 )
 
@@ -20,11 +21,14 @@ func New(d *bootstrap.Deps) *gin.Engine {
 	r := gin.New()
 	// Recovery 防止未处理 panic 终止进程，RequestID 为日志和客户端提供关联标识。
 	r.Use(gin.Recovery(), middleware.RequestID())
+
 	r.GET("/health", ginext.Wrap(health))
+
 	r.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
 
 	api := r.Group("/api/v1")
 	auth.Register(api, d)
 	ai.Register(api, d)
+	aigo.Register(api, d)
 	return r
 }

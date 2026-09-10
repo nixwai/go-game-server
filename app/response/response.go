@@ -27,10 +27,16 @@ const (
 	CodeDefaultAIReadOnly = 4005
 	// CodeDecryptFailed 表示 API Key 传输层解密失败。
 	CodeDecryptFailed = 4006
+	// CodeModelInactive 表示激活的模型或产商已禁用。
+	CodeModelInactive = 4007
 	// CodeInternal 表示服务器内部异常。
 	CodeInternal = 9000
 	// CodeMasterKeyInvalid 表示加密主密钥未配置或无效。
 	CodeMasterKeyInvalid = 9001
+	// CodeAICallFailed 表示 LLM API 调用失败。
+	CodeAICallFailed = 9002
+	// CodeAIResponseInvalid 表示 LLM 返回内容无法解析为有效落子或结束申请。
+	CodeAIResponseInvalid = 9003
 )
 
 // Body 是所有 API 响应使用的统一包装结构。

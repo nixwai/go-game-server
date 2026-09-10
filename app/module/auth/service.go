@@ -77,6 +77,28 @@ func (s *Service) CurrentUser(ctx context.Context, userID uint64) (model.User, e
 	return user, nil
 }
 
+// ChangePassword 校验旧密码后更新为新密码。
+func (s *Service) ChangePassword(ctx context.Context, userID uint64, oldPassword, newPassword string) error {
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil || user.Status != model.StatusActive {
+		return response.NewError(response.CodeNotFound, "用户不存在", nil)
+	}
+	if !s.hasher.Compare(oldPassword, user.PasswordHash) {
+		return response.NewError(response.CodeAuthFailed, "原密码错误", nil)
+	}
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
+	hash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return response.NewError(response.CodeInternal, "服务器内部错误", err)
+	}
+	if err := s.users.UpdatePassword(ctx, userID, hash); err != nil {
+		return response.NewError(response.CodeInternal, "服务器内部错误", err)
+	}
+	return nil
+}
+
 // usernamePattern 限制用户名只使用 ASCII 字母、数字和下划线。
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
