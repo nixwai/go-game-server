@@ -84,6 +84,15 @@ func (m *memProviders) FindByUserID(_ context.Context, userID uint64) ([]model.A
 	}
 	return result, nil
 }
+func (m *memProviders) CountByUserID(_ context.Context, userID uint64) (int64, error) {
+	var count int64
+	for _, p := range m.byID {
+		if p.UserID == userID {
+			count++
+		}
+	}
+	return count, nil
+}
 
 func (m *memProviders) FindByID(_ context.Context, id uint64) (model.AIProvider, error) {
 	p, ok := m.byID[id]
@@ -133,6 +142,15 @@ func (m *memModels) FindByProviderID(_ context.Context, providerID uint64) ([]mo
 		}
 	}
 	return result, nil
+}
+func (m *memModels) CountByProviderID(_ context.Context, providerID uint64) (int64, error) {
+	var count int64
+	for _, mdl := range m.byID {
+		if mdl.ProviderID == providerID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (m *memModels) FindByID(_ context.Context, id uint64) (model.AIModel, error) {

@@ -102,7 +102,7 @@ func newRouterForTest() (*gin.Engine, *security.TokenManager, *security.CryptoMa
 	authSvc := auth.NewService(repo, hasher, tokens, -1)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
 	authH := auth.NewHandler(authSvc, crypto)
-	aiSvc := ai.NewService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})
+	aiSvc := ai.NewService(nil, nil, crypto, config.Config{DefaultAI: config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"}, MaxProvidersPerUser: 10, MaxModelsPerProvider: 20})
 	aiH := ai.NewHandler(aiSvc)
 
 	r := gin.New()

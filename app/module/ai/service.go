@@ -13,10 +13,12 @@ import (
 
 // Service 编排 AI 产商和模型配置的增删改查，以及 API Key 的加解密流程。
 type Service struct {
-	providers ProviderRepository
-	models    ModelRepository
-	crypto    *security.CryptoManager
-	defaultAI config.DefaultAIConfig
+	providers    ProviderRepository
+	models       ModelRepository
+	crypto       *security.CryptoManager
+	defaultAI    config.DefaultAIConfig
+	maxProviders int
+	maxModels    int
 }
 
 // ProviderWithModels 是 Service 层返回的产商及其关联模型组合，供 Handler 转换为 DTO。
@@ -25,9 +27,23 @@ type ProviderWithModels struct {
 	Models   []model.AIModel
 }
 
+// UpdateProviderParams 是更新产商的参数。
+type UpdateProviderParams struct {
+	ProviderName    *string
+	BaseURL         *string
+	EncryptedAPIKey *string
+	Status          *string
+}
+
+// UpdateModelParams 是更新模型的参数。
+type UpdateModelParams struct {
+	ModelName *string
+	Status    *string
+}
+
 // NewService 创建 AI 管理服务，并注入外部依赖。
-func NewService(providers ProviderRepository, models ModelRepository, crypto *security.CryptoManager, defaultAI config.DefaultAIConfig) *Service {
-	return &Service{providers: providers, models: models, crypto: crypto, defaultAI: defaultAI}
+func NewService(providers ProviderRepository, models ModelRepository, crypto *security.CryptoManager, cfg config.Config) *Service {
+	return &Service{providers: providers, models: models, crypto: crypto, defaultAI: cfg.DefaultAI, maxProviders: cfg.MaxProvidersPerUser, maxModels: cfg.MaxModelsPerProvider}
 }
 
 // DefaultAI 返回配置文件提供的只读默认 AI 产商和模型信息。
@@ -52,6 +68,15 @@ func (s *Service) ListProviders(ctx context.Context, userID uint64) ([]ProviderW
 
 // CreateProvider 校验输入、解密传输层 API Key、AES 加密后入库。
 func (s *Service) CreateProvider(ctx context.Context, userID uint64, providerName, baseURL, encryptedAPIKey string) (model.AIProvider, error) {
+	if s.maxProviders >= 0 {
+		count, err := s.providers.CountByUserID(ctx, userID)
+		if err != nil {
+			return model.AIProvider{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
+		}
+		if count >= int64(s.maxProviders) {
+			return model.AIProvider{}, response.NewError(response.CodeLimitExceeded, "产商数量已达上限", nil)
+		}
+	}
 	if err := validateProviderName(providerName); err != nil {
 		return model.AIProvider{}, err
 	}
@@ -151,6 +176,15 @@ func (s *Service) CreateModel(ctx context.Context, userID, providerID uint64, mo
 	}
 	if err := s.assertProviderOwned(ctx, userID, providerID); err != nil {
 		return model.AIModel{}, err
+	}
+	if s.maxModels >= 0 {
+		count, err := s.models.CountByProviderID(ctx, providerID)
+		if err != nil {
+			return model.AIModel{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
+		}
+		if count >= int64(s.maxModels) {
+			return model.AIModel{}, response.NewError(response.CodeLimitExceeded, "模型数量已达上限", nil)
+		}
 	}
 	mdl := model.AIModel{
 		ProviderID: providerID,
@@ -262,18 +296,4 @@ func validateStatus(status string) error {
 		return response.NewError(response.CodeValidation, "状态值无效", nil)
 	}
 	return nil
-}
-
-// UpdateProviderParams 是更新产商的参数。
-type UpdateProviderParams struct {
-	ProviderName    *string
-	BaseURL         *string
-	EncryptedAPIKey *string
-	Status          *string
-}
-
-// UpdateModelParams 是更新模型的参数。
-type UpdateModelParams struct {
-	ModelName *string
-	Status    *string
 }

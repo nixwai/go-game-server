@@ -33,6 +33,8 @@ const (
 
 	// CodeRegisterLimitExceeded 表示当日注册量达到上限。
 	CodeRegisterLimitExceeded = 4008
+	// CodeLimitExceeded 表示用户可配置的产商或模型数量已达上限。
+	CodeLimitExceeded = 4009
 	// CodeInternal 表示服务器内部异常。
 	CodeInternal = 9000
 	// CodeMasterKeyInvalid 表示加密主密钥未配置或无效。

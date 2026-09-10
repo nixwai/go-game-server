@@ -71,6 +71,15 @@ func (m *memoryAIProviders) FindByUserID(_ context.Context, userID uint64) ([]mo
 	}
 	return result, nil
 }
+func (m *memoryAIProviders) CountByUserID(_ context.Context, userID uint64) (int64, error) {
+	var count int64
+	for _, p := range m.byID {
+		if p.UserID == userID {
+			count++
+		}
+	}
+	return count, nil
+}
 func (m *memoryAIProviders) FindByID(_ context.Context, id uint64) (model.AIProvider, error) {
 	if m.err != nil {
 		return model.AIProvider{}, m.err
@@ -120,6 +129,15 @@ func (m *memoryAIModels) FindByProviderID(_ context.Context, providerID uint64) 
 	}
 	return result, nil
 }
+func (m *memoryAIModels) CountByProviderID(_ context.Context, providerID uint64) (int64, error) {
+	var count int64
+	for _, mdl := range m.byID {
+		if mdl.ProviderID == providerID {
+			count++
+		}
+	}
+	return count, nil
+}
 func (m *memoryAIModels) FindByID(_ context.Context, id uint64) (model.AIModel, error) {
 	mdl, ok := m.byID[id]
 	if !ok {
@@ -150,6 +168,22 @@ func (m *memoryAIModels) DeleteByProviderID(_ context.Context, providerID uint64
 	return nil
 }
 
+func newTestAIServiceWithLimits(providers ai.ProviderRepository, models ai.ModelRepository, maxProviders, maxModels int) (*ai.Service, *security.CryptoManager) {
+	if p, ok := providers.(*memoryAIProviders); ok {
+		if mm, ok := models.(*memoryAIModels); ok {
+			p.models = mm
+		}
+	}
+	crypto, _ := security.NewCryptoManager(validMasterKeyB64())
+	defaultAI := config.DefaultAIConfig{
+		ProviderName: "OpenAI",
+		BaseURL:      "https://api.openai.com/v1",
+		ModelName:    "gpt-4o-mini",
+		APIKey:       "sk-default",
+	}
+	return ai.NewService(providers, models, crypto, config.Config{DefaultAI: defaultAI, MaxProvidersPerUser: maxProviders, MaxModelsPerProvider: maxModels}), crypto
+}
+
 func newTestAIService(providers ai.ProviderRepository, models ai.ModelRepository) (*ai.Service, *security.CryptoManager) {
 	if p, ok := providers.(*memoryAIProviders); ok {
 		if mm, ok := models.(*memoryAIModels); ok {
@@ -163,7 +197,7 @@ func newTestAIService(providers ai.ProviderRepository, models ai.ModelRepository
 		ModelName:    "gpt-4o-mini",
 		APIKey:       "sk-default",
 	}
-	return ai.NewService(providers, models, crypto, defaultAI), crypto
+	return ai.NewService(providers, models, crypto, config.Config{DefaultAI: defaultAI, MaxProvidersPerUser: 10, MaxModelsPerProvider: 20}), crypto
 }
 
 func TestCreateProvider(t *testing.T) {
@@ -447,5 +481,83 @@ func TestDefaultAI(t *testing.T) {
 	d := svc.DefaultAI()
 	if d.ProviderName != "OpenAI" || d.ModelName != "gpt-4o-mini" {
 		t.Fatalf("unexpected default AI: %+v", d)
+	}
+}
+
+func TestCreateProviderLimitExceeded(t *testing.T) {
+	providers := newMemoryAIProviders()
+	models := newMemoryAIModels()
+	svc, crypto := newTestAIServiceWithLimits(providers, models, 1, 20)
+
+	pubPEM, _ := crypto.PublicKeyPEM()
+	encKey := encryptWithPublicKey(t, pubPEM, "sk-secret")
+	_, err := svc.CreateProvider(context.Background(), 1, "OpenAI", "https://api.openai.com/v1", encKey)
+	if err != nil {
+		t.Fatalf("first create should succeed: %v", err)
+	}
+
+	_, err = svc.CreateProvider(context.Background(), 1, "Anthropic", "https://api.anthropic.com", encKey)
+	if err == nil {
+		t.Fatal("second create should fail due to provider limit")
+	}
+	var appErr *response.AppError
+	if !errors.As(err, &appErr) || appErr.Code != response.CodeLimitExceeded {
+		t.Fatalf("expected CodeLimitExceeded, got %v", err)
+	}
+}
+
+func TestCreateProviderLimitUnlimited(t *testing.T) {
+	providers := newMemoryAIProviders()
+	models := newMemoryAIModels()
+	svc, crypto := newTestAIServiceWithLimits(providers, models, -1, -1)
+
+	pubPEM, _ := crypto.PublicKeyPEM()
+	encKey := encryptWithPublicKey(t, pubPEM, "sk-secret")
+	for i := 0; i < 5; i++ {
+		_, err := svc.CreateProvider(context.Background(), 1, "P", "https://api.openai.com/v1", encKey)
+		if err != nil {
+			t.Fatalf("create %d should succeed with unlimited: %v", i, err)
+		}
+	}
+}
+
+func TestCreateModelLimitExceeded(t *testing.T) {
+	providers := newMemoryAIProviders()
+	models := newMemoryAIModels()
+	svc, crypto := newTestAIServiceWithLimits(providers, models, 10, 1)
+
+	pubPEM, _ := crypto.PublicKeyPEM()
+	encKey := encryptWithPublicKey(t, pubPEM, "sk-secret")
+	provider, _ := svc.CreateProvider(context.Background(), 1, "OpenAI", "https://api.openai.com/v1", encKey)
+
+	_, err := svc.CreateModel(context.Background(), 1, provider.ID, "gpt-4o")
+	if err != nil {
+		t.Fatalf("first model create should succeed: %v", err)
+	}
+
+	_, err = svc.CreateModel(context.Background(), 1, provider.ID, "gpt-4o-mini")
+	if err == nil {
+		t.Fatal("second model create should fail due to model limit")
+	}
+	var appErr *response.AppError
+	if !errors.As(err, &appErr) || appErr.Code != response.CodeLimitExceeded {
+		t.Fatalf("expected CodeLimitExceeded, got %v", err)
+	}
+}
+
+func TestCreateModelLimitUnlimited(t *testing.T) {
+	providers := newMemoryAIProviders()
+	models := newMemoryAIModels()
+	svc, crypto := newTestAIServiceWithLimits(providers, models, 10, -1)
+
+	pubPEM, _ := crypto.PublicKeyPEM()
+	encKey := encryptWithPublicKey(t, pubPEM, "sk-secret")
+	provider, _ := svc.CreateProvider(context.Background(), 1, "OpenAI", "https://api.openai.com/v1", encKey)
+
+	for i := 0; i < 5; i++ {
+		_, err := svc.CreateModel(context.Background(), 1, provider.ID, "m")
+		if err != nil {
+			t.Fatalf("model create %d should succeed with unlimited: %v", i, err)
+		}
 	}
 }

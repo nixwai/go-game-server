@@ -41,6 +41,10 @@ type Config struct {
 	GoLLMTimeout time.Duration
 	// DailyRegisterLimit 是每日用户注册上限，-1 表示无限制，0 表示禁止注册，正数表示当天最大注册数。
 	DailyRegisterLimit int
+	// MaxProvidersPerUser 是每个用户最多可配置的 AI 产商数量，-1 表示无限制。
+	MaxProvidersPerUser int
+	// MaxModelsPerProvider 是每个产商下最多可配置的 AI 模型数量，-1 表示无限制。
+	MaxModelsPerProvider int
 }
 
 // DefaultAIConfig 描述通过环境变量配置的默认 AI 产商和模型。
@@ -98,22 +102,32 @@ func load(requireJWT bool) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	maxProvidersPerUser, err := int64Env("MAX_PROVIDERS_PER_USER", 10)
+	if err != nil {
+		return Config{}, err
+	}
+	maxModelsPerProvider, err := int64Env("MAX_MODELS_PER_PROVIDER", 20)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
-		AppEnv:             env("APP_ENV", "development"),
-		HTTPAddr:           env("HTTP_ADDR", ":8080"),
-		MySQLDSN:           os.Getenv("MYSQL_DSN"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		JWTIssuer:          env("JWT_ISSUER", "go-game-server"),
-		JWTExpiresIn:       expiresIn,
-		Argon2Time:         timeCost,
-		Argon2Memory:       memory,
-		Argon2Threads:      threads,
-		Argon2KeyLen:       keyLen,
-		Argon2SaltLen:      saltLen,
-		MasterKey:          os.Getenv("MASTER_KEY"),
-		GoLLMTimeout:       goLLMTimeout,
-		DailyRegisterLimit: dailyRegisterLimit,
+		AppEnv:               env("APP_ENV", "development"),
+		HTTPAddr:             env("HTTP_ADDR", ":8080"),
+		MySQLDSN:             os.Getenv("MYSQL_DSN"),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		JWTIssuer:            env("JWT_ISSUER", "go-game-server"),
+		JWTExpiresIn:         expiresIn,
+		Argon2Time:           timeCost,
+		Argon2Memory:         memory,
+		Argon2Threads:        threads,
+		Argon2KeyLen:         keyLen,
+		Argon2SaltLen:        saltLen,
+		MasterKey:            os.Getenv("MASTER_KEY"),
+		GoLLMTimeout:         goLLMTimeout,
+		DailyRegisterLimit:   dailyRegisterLimit,
+		MaxProvidersPerUser:  maxProvidersPerUser,
+		MaxModelsPerProvider: maxModelsPerProvider,
 		DefaultAI: DefaultAIConfig{
 			ProviderName: env("DEFAULT_AI_PROVIDER", "OpenAI"),
 			BaseURL:      env("DEFAULT_AI_BASE_URL", "https://api.openai.com/v1"),

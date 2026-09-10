@@ -40,6 +40,15 @@ func (m *memAIProviders) FindByUserID(_ context.Context, userID uint64) ([]model
 	}
 	return result, nil
 }
+func (m *memAIProviders) CountByUserID(_ context.Context, userID uint64) (int64, error) {
+	var count int64
+	for _, p := range m.byID {
+		if p.UserID == userID {
+			count++
+		}
+	}
+	return count, nil
+}
 func (m *memAIProviders) FindByID(_ context.Context, id uint64) (model.AIProvider, error) {
 	p, ok := m.byID[id]
 	if !ok {
@@ -82,6 +91,15 @@ func (m *memAIModels) FindByProviderID(_ context.Context, providerID uint64) ([]
 		}
 	}
 	return result, nil
+}
+func (m *memAIModels) CountByProviderID(_ context.Context, providerID uint64) (int64, error) {
+	var count int64
+	for _, mdl := range m.byID {
+		if mdl.ProviderID == providerID {
+			count++
+		}
+	}
+	return count, nil
 }
 func (m *memAIModels) FindByID(_ context.Context, id uint64) (model.AIModel, error) {
 	mdl, ok := m.byID[id]
@@ -128,9 +146,9 @@ func newAIRouterForTest() (*gin.Engine, *security.TokenManager, *security.Crypto
 	authSvc := auth.NewService(repo, hasher, tokens, -1)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
 	authH := auth.NewHandler(authSvc, crypto)
-	aiSvc := ai.NewService(newMemAIProviders(), newMemAIModels(), crypto, config.DefaultAIConfig{
+	aiSvc := ai.NewService(newMemAIProviders(), newMemAIModels(), crypto, config.Config{DefaultAI: config.DefaultAIConfig{
 		ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-default",
-	})
+	}, MaxProvidersPerUser: 10, MaxModelsPerProvider: 20})
 	aiH := ai.NewHandler(aiSvc)
 
 	r := gin.New()

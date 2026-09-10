@@ -11,6 +11,7 @@ import (
 // ProviderRepository 定义 AI 产商配置的数据访问边界。
 type ProviderRepository interface {
 	FindByUserID(ctx context.Context, userID uint64) ([]model.AIProvider, error)
+	CountByUserID(ctx context.Context, userID uint64) (int64, error)
 	FindByID(ctx context.Context, id uint64) (model.AIProvider, error)
 	Create(ctx context.Context, provider *model.AIProvider) error
 	Update(ctx context.Context, provider *model.AIProvider) error
@@ -21,6 +22,7 @@ type ProviderRepository interface {
 // ModelRepository 定义 AI 模型配置的数据访问边界。
 type ModelRepository interface {
 	FindByProviderID(ctx context.Context, providerID uint64) ([]model.AIModel, error)
+	CountByProviderID(ctx context.Context, providerID uint64) (int64, error)
 	FindByID(ctx context.Context, id uint64) (model.AIModel, error)
 	Create(ctx context.Context, mdl *model.AIModel) error
 	Update(ctx context.Context, mdl *model.AIModel) error
@@ -42,6 +44,12 @@ func (r *GormProviderRepository) FindByUserID(ctx context.Context, userID uint64
 	var providers []model.AIProvider
 	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&providers).Error
 	return providers, err
+}
+
+func (r *GormProviderRepository) CountByUserID(ctx context.Context, userID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.AIProvider{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
 }
 
 func (r *GormProviderRepository) FindByID(ctx context.Context, id uint64) (model.AIProvider, error) {
@@ -89,6 +97,12 @@ func (r *GormModelRepository) FindByProviderID(ctx context.Context, providerID u
 	var models []model.AIModel
 	err := r.db.WithContext(ctx).Where("provider_id = ?", providerID).Order("created_at DESC").Find(&models).Error
 	return models, err
+}
+
+func (r *GormModelRepository) CountByProviderID(ctx context.Context, providerID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.AIModel{}).Where("provider_id = ?", providerID).Count(&count).Error
+	return count, err
 }
 
 func (r *GormModelRepository) FindByID(ctx context.Context, id uint64) (model.AIModel, error) {

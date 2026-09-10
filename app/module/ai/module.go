@@ -19,7 +19,7 @@ func Register(rg *gin.RouterGroup, d *bootstrap.Deps) {
 func Wire(d *bootstrap.Deps) *Handler {
 	providers := NewGormProviderRepository(d.DB)
 	models := NewGormModelRepository(d.DB)
-	svc := NewService(providers, models, d.Crypto, d.Config.DefaultAI)
+	svc := NewService(providers, models, d.Crypto, d.Config)
 	return NewHandler(svc)
 }
 
