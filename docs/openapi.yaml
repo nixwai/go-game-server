@@ -27,6 +27,7 @@ info:
     | 4005 | 默认 AI 配置不可修改或删除 |
     | 4006 | 传输层 RSA 解密失败 |
     | 4007 | 模型或产商已禁用 |
+    | 4008 | 当日注册量已达上限 |
     | 9000 | 服务器内部错误 |
     | 9001 | 加密主密钥未配置或无效 |
     | 9002 | LLM API 调用失败 |
@@ -139,6 +140,12 @@ paths:
                   value:
                     code: 4001
                     message: 用户名已存在
+                    data: null
+                registerLimitExceeded:
+                  summary: 当日注册量已达上限
+                  value:
+                    code: 4008
+                    message: 当日注册量已达上限
                     data: null
   /api/v1/auth/login:
     post:

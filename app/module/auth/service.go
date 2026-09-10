@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/nixwai/go-game-server/app/model"
@@ -14,9 +15,10 @@ import (
 
 // Service 编排用户注册、登录和当前用户查询。
 type Service struct {
-	users  UserRepository
-	hasher security.PasswordHasher
-	tokens *security.TokenManager
+	users              UserRepository
+	hasher             security.PasswordHasher
+	tokens             *security.TokenManager
+	dailyRegisterLimit int
 }
 
 // LoginResult 是登录成功后返回的令牌和用户信息。
@@ -26,8 +28,8 @@ type LoginResult struct {
 }
 
 // NewService 创建认证服务，并注入其外部依赖。
-func NewService(users UserRepository, hasher security.PasswordHasher, tokens *security.TokenManager) *Service {
-	return &Service{users: users, hasher: hasher, tokens: tokens}
+func NewService(users UserRepository, hasher security.PasswordHasher, tokens *security.TokenManager, dailyRegisterLimit int) *Service {
+	return &Service{users: users, hasher: hasher, tokens: tokens, dailyRegisterLimit: dailyRegisterLimit}
 }
 
 // Register 校验并创建普通用户。
@@ -37,6 +39,15 @@ func (s *Service) Register(ctx context.Context, username, password string) (mode
 	}
 	if err := validatePassword(password); err != nil {
 		return model.User{}, err
+	}
+	if s.dailyRegisterLimit >= 0 {
+		count, err := s.users.CountByDate(ctx, time.Now().UTC())
+		if err != nil {
+			return model.User{}, response.NewError(response.CodeInternal, "服务器内部错误", err)
+		}
+		if count >= int64(s.dailyRegisterLimit) {
+			return model.User{}, response.NewError(response.CodeRegisterLimitExceeded, "当日注册量已达上限", nil)
+		}
 	}
 	hash, err := s.hasher.Hash(password)
 	if err != nil {

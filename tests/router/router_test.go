@@ -68,6 +68,10 @@ func (r *testRepo) UpdatePassword(_ context.Context, id uint64, passwordHash str
 	return model.ErrNotFound
 }
 
+func (r *testRepo) CountByDate(_ context.Context, _ time.Time) (int64, error) {
+	return int64(len(r.users)), nil
+}
+
 // encryptPassword 使用 CryptoManager 的 RSA 公钥加密明文密码，返回 base64 编码密文。
 func encryptPassword(t *testing.T, crypto *security.CryptoManager, plaintext string) string {
 	t.Helper()
@@ -95,7 +99,7 @@ func newRouterForTest() (*gin.Engine, *security.TokenManager, *security.CryptoMa
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
-	authSvc := auth.NewService(repo, hasher, tokens)
+	authSvc := auth.NewService(repo, hasher, tokens, -1)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
 	authH := auth.NewHandler(authSvc, crypto)
 	aiSvc := ai.NewService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})

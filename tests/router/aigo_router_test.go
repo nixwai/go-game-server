@@ -66,7 +66,7 @@ func newAIGoRouterForTest(mock *aigoMockLLM) (*gin.Engine, *security.TokenManage
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
-	authSvc := auth.NewService(repo, hasher, tokens)
+	authSvc := auth.NewService(repo, hasher, tokens, -1)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
 	authH := auth.NewHandler(authSvc, crypto)
 	aigoSvc := aigo.NewService(newAigoRtSettings(), newMemAIProviders(), newMemAIModels(), crypto, mock, config.DefaultAIConfig{

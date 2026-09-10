@@ -30,6 +30,9 @@ const (
 	CodeDecryptFailed = 4006
 	// CodeModelInactive 表示激活的模型或产商已禁用。
 	CodeModelInactive = 4007
+
+	// CodeRegisterLimitExceeded 表示当日注册量达到上限。
+	CodeRegisterLimitExceeded = 4008
 	// CodeInternal 表示服务器内部异常。
 	CodeInternal = 9000
 	// CodeMasterKeyInvalid 表示加密主密钥未配置或无效。

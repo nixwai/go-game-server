@@ -17,6 +17,7 @@ type memoryUsers struct {
 	next      uint64
 	err       error
 	createErr error
+	countErr  error
 }
 
 func newMemoryUsers() *memoryUsers { return &memoryUsers{byName: map[string]model.User{}, next: 1} }
@@ -60,11 +61,23 @@ func (m *memoryUsers) UpdatePassword(_ context.Context, id uint64, passwordHash 
 	}
 	return model.ErrNotFound
 }
+func (m *memoryUsers) CountByDate(_ context.Context, _ time.Time) (int64, error) {
+	if m.countErr != nil {
+		return 0, m.countErr
+	}
+	return int64(len(m.byName)), nil
+}
 
 func newTestService(users *memoryUsers) *auth.Service {
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
-	return auth.NewService(users, hasher, tokens)
+	return auth.NewService(users, hasher, tokens, -1)
+}
+
+func newTestServiceWithLimit(users *memoryUsers, limit int) *auth.Service {
+	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
+	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
+	return auth.NewService(users, hasher, tokens, limit)
 }
 
 func TestRegisterAndLogin(t *testing.T) {
@@ -196,5 +209,47 @@ func TestChangePasswordUserNotFound(t *testing.T) {
 	svc := newTestService(newMemoryUsers())
 	if err := svc.ChangePassword(context.Background(), 999, "SecurePass123", "NewPass456"); err == nil {
 		t.Fatal("nonexistent user should fail")
+	}
+}
+
+func TestRegisterDailyLimitExceeded(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestServiceWithLimit(users, 1)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Register(context.Background(), "bob", "SecurePass123"); err == nil {
+		t.Fatal("should fail when daily limit exceeded")
+	}
+}
+
+func TestRegisterDailyLimitUnlimited(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestServiceWithLimit(users, -1)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Register(context.Background(), "bob", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Register(context.Background(), "charlie", "SecurePass123"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRegisterDailyLimitZero(t *testing.T) {
+	users := newMemoryUsers()
+	svc := newTestServiceWithLimit(users, 0)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err == nil {
+		t.Fatal("should fail when daily limit is 0")
+	}
+}
+
+func TestRegisterDailyLimitCountError(t *testing.T) {
+	users := newMemoryUsers()
+	users.countErr = errors.New("database unavailable")
+	svc := newTestServiceWithLimit(users, 10)
+	if _, err := svc.Register(context.Background(), "alice", "SecurePass123"); err == nil {
+		t.Fatal("should fail when count query errors")
 	}
 }

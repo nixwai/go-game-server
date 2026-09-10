@@ -39,6 +39,8 @@ type Config struct {
 	DefaultAI DefaultAIConfig
 	// GoLLMTimeout 是调用 LLM API 的超时时间。
 	GoLLMTimeout time.Duration
+	// DailyRegisterLimit 是每日用户注册上限，-1 表示无限制，0 表示禁止注册，正数表示当天最大注册数。
+	DailyRegisterLimit int
 }
 
 // DefaultAIConfig 描述通过环境变量配置的默认 AI 产商和模型。
@@ -92,21 +94,26 @@ func load(requireJWT bool) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	dailyRegisterLimit, err := int64Env("DAILY_REGISTER_LIMIT", -1)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
-		AppEnv:        env("APP_ENV", "development"),
-		HTTPAddr:      env("HTTP_ADDR", ":8080"),
-		MySQLDSN:      os.Getenv("MYSQL_DSN"),
-		JWTSecret:     os.Getenv("JWT_SECRET"),
-		JWTIssuer:     env("JWT_ISSUER", "go-game-server"),
-		JWTExpiresIn:  expiresIn,
-		Argon2Time:    timeCost,
-		Argon2Memory:  memory,
-		Argon2Threads: threads,
-		Argon2KeyLen:  keyLen,
-		Argon2SaltLen: saltLen,
-		MasterKey:     os.Getenv("MASTER_KEY"),
-		GoLLMTimeout:  goLLMTimeout,
+		AppEnv:             env("APP_ENV", "development"),
+		HTTPAddr:           env("HTTP_ADDR", ":8080"),
+		MySQLDSN:           os.Getenv("MYSQL_DSN"),
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		JWTIssuer:          env("JWT_ISSUER", "go-game-server"),
+		JWTExpiresIn:       expiresIn,
+		Argon2Time:         timeCost,
+		Argon2Memory:       memory,
+		Argon2Threads:      threads,
+		Argon2KeyLen:       keyLen,
+		Argon2SaltLen:      saltLen,
+		MasterKey:          os.Getenv("MASTER_KEY"),
+		GoLLMTimeout:       goLLMTimeout,
+		DailyRegisterLimit: dailyRegisterLimit,
 		DefaultAI: DefaultAIConfig{
 			ProviderName: env("DEFAULT_AI_PROVIDER", "OpenAI"),
 			BaseURL:      env("DEFAULT_AI_BASE_URL", "https://api.openai.com/v1"),
@@ -183,4 +190,17 @@ func uint8Env(key string, fallback uint8) (uint8, error) {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
 	return uint8(n), nil
+}
+
+// int64Env 读取有符号 64 位整数配置，并在格式错误时返回配置项名称。
+func int64Env(key string, fallback int) (int, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return int(n), nil
 }

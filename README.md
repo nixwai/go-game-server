@@ -132,26 +132,7 @@ AGENTS.md
 
 所有配置通过环境变量提供，`.env.example` 包含全部可配置项及注释。
 
-| 环境变量 | 说明 | 默认值 |
-|----------|------|--------|
-| `APP_ENV` | 运行环境 | `development` |
-| `HTTP_ADDR` | HTTP 监听地址 | `:8080` |
-| `MYSQL_DSN` | GORM MySQL DSN | — |
-| `MYSQL_MIGRATE_URL` | golang-migrate MySQL URL | — |
-| `JWT_SECRET` | HS256 签名密钥（≥32 字节） | — |
-| `JWT_ISSUER` | JWT 签发方 | `go-game-server` |
-| `JWT_EXPIRES_IN` | Access Token 有效期 | `2h` |
-| `ARGON2_TIME` | Argon2id 时间成本 | `1` |
-| `ARGON2_MEMORY` | Argon2id 内存成本（KiB） | `65536` |
-| `ARGON2_THREADS` | Argon2id 并行线程数 | `4` |
-| `ARGON2_KEY_LEN` | Argon2id 哈希长度（字节） | `32` |
-| `ARGON2_SALT_LEN` | Argon2id 随机盐长度（字节） | `16` |
-| `MASTER_KEY` | AES-256-GCM 主密钥（base64 编码 32 字节） | — |
-| `DEFAULT_AI_PROVIDER` | 默认 AI 产商名称 | `OpenAI` |
-| `DEFAULT_AI_BASE_URL` | 默认 AI 产商 API 地址 | `https://api.openai.com/v1` |
-| `DEFAULT_AI_MODEL` | 默认 AI 模型名称 | `gpt-4o-mini` |
-| `DEFAULT_AI_API_KEY` | 默认产商 API Key（仅存内存） | — |
-| `GO_LLM_TIMEOUT` | LLM API 调用超时 | `30s` |
+详细内容见配置示例文件。
 
 ## API 文档查询
 
@@ -288,18 +269,7 @@ go test -cover ./...
 
 目标覆盖率不低于 80%。
 
-测试目录划分：
-
-```text
-tests/
-  config/                 配置加载与 .env 测试
-  response/               统一响应与业务码测试
-  security/               Argon2id、JWT 与 AES 加解密测试
-  bootstrap/              应用启动测试
-  module/                 模块测试
-  router/                 路由与中间件测试
-  mysql_integration_test.go  数据库集成测试
-```
+测试目录根据开发代码文件结构进行划分。
 
 ## 安全要点
 

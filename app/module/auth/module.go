@@ -25,7 +25,7 @@ func Wire(d *bootstrap.Deps) *Handler {
 		KeyLen:  d.Config.Argon2KeyLen,
 		SaltLen: d.Config.Argon2SaltLen,
 	}
-	svc := NewService(users, hasher, d.Tokens)
+	svc := NewService(users, hasher, d.Tokens, d.Config.DailyRegisterLimit)
 	return NewHandler(svc, d.Crypto)
 }
 

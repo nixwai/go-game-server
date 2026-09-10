@@ -113,6 +113,7 @@ Authorization: Bearer <jwt>
 - `JWT_SECRET`：至少 32 字节的高熵密钥；
 - `JWT_EXPIRES_IN`：JWT 有效期；
 - `ARGON2_*`：Argon2id 参数。
+- `DAILY_REGISTER_LIMIT`：每日用户注册上限，-1 表示无限制，0 表示禁止注册，正数表示当天最大注册数。
 
 生产环境必须使用密钥管理系统或安全的环境变量注入机制。禁止将密钥写入代码、测试固定值之外的配置文件或日志。
 
