@@ -20,13 +20,12 @@ func Wire(d *bootstrap.Deps) *Handler {
 	providers := NewGormProviderRepository(d.DB)
 	models := NewGormModelRepository(d.DB)
 	svc := NewService(providers, models, d.Crypto, d.Config.DefaultAI)
-	return NewHandler(svc, d.Crypto)
+	return NewHandler(svc)
 }
 
 // RegisterRoutes 在指定路由组上注册 AI 模型管理路由。
 func RegisterRoutes(rg *gin.RouterGroup, h *Handler, tokens *security.TokenManager) {
 	g := rg.Group("/ai", middleware.AuthRequired(tokens))
-	g.GET("/public-key", ginext.Wrap(h.PublicKey))
 	g.GET("/providers/list", ginext.Wrap(h.ListProviders))
 	g.POST("/providers/create", ginext.WrapJSON(h.CreateProvider))
 	g.POST("/providers/update", ginext.WrapJSON(h.UpdateProvider))

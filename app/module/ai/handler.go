@@ -5,28 +5,16 @@ import (
 	"github.com/nixwai/go-game-server/app/middleware"
 	"github.com/nixwai/go-game-server/app/model"
 	"github.com/nixwai/go-game-server/app/module/ai/dto"
-	"github.com/nixwai/go-game-server/app/response"
-	"github.com/nixwai/go-game-server/app/security"
 )
 
 // Handler 是 AI 模型管理相关接口的 HTTP 处理器。
 type Handler struct {
-	svc    *Service
-	crypto *security.CryptoManager
+	svc *Service
 }
 
 // NewHandler 创建 AI 管理 HTTP 处理器。
-func NewHandler(svc *Service, crypto *security.CryptoManager) *Handler {
-	return &Handler{svc: svc, crypto: crypto}
-}
-
-// PublicKey 返回 RSA 公钥的 PEM 字符串，供前端加密 API Key 使用。
-func (h *Handler) PublicKey(c *gin.Context) (gin.H, error) {
-	pem, err := h.crypto.PublicKeyPEM()
-	if err != nil {
-		return nil, response.NewError(response.CodeInternal, "服务器内部错误", err)
-	}
-	return gin.H{"public_key": pem}, nil
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
 }
 
 // ListProviders 返回当前用户的所有产商配置和模型，列表头部插入只读默认 AI。

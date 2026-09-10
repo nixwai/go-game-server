@@ -2,7 +2,13 @@ package router_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,15 +68,38 @@ func (r *testRepo) UpdatePassword(_ context.Context, id uint64, passwordHash str
 	return model.ErrNotFound
 }
 
-func newRouterForTest() (*gin.Engine, *security.TokenManager) {
+// encryptPassword 使用 CryptoManager 的 RSA 公钥加密明文密码，返回 base64 编码密文。
+func encryptPassword(t *testing.T, crypto *security.CryptoManager, plaintext string) string {
+	t.Helper()
+	pemStr, _ := crypto.PublicKeyPEM()
+	block, _ := pem.Decode([]byte(pemStr))
+	if block == nil {
+		t.Fatal("failed to decode PEM block")
+	}
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse public key: %v", err)
+	}
+	rsaPub, ok := pubKey.(*rsa.PublicKey)
+	if !ok {
+		t.Fatal("not an RSA public key")
+	}
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPub, []byte(plaintext), nil)
+	if err != nil {
+		t.Fatalf("RSA encrypt: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(ciphertext)
+}
+
+func newRouterForTest() (*gin.Engine, *security.TokenManager, *security.CryptoManager) {
 	repo := &testRepo{users: map[string]model.User{}, next: 1}
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
 	authSvc := auth.NewService(repo, hasher, tokens)
-	authH := auth.NewHandler(authSvc)
-	crypto, _ := security.NewCryptoManager("MDEyMzQ1Njc4OWFiY2RlZmdoMTIzNDU2Nzg5YWJjZGVmZ2g=")
+	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
+	authH := auth.NewHandler(authSvc, crypto)
 	aiSvc := ai.NewService(nil, nil, crypto, config.DefaultAIConfig{ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test"})
-	aiH := ai.NewHandler(aiSvc, crypto)
+	aiH := ai.NewHandler(aiSvc)
 
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.RequestID())
@@ -79,7 +108,7 @@ func newRouterForTest() (*gin.Engine, *security.TokenManager) {
 	api := r.Group("/api/v1")
 	auth.RegisterRoutes(api, authH, tokens)
 	ai.RegisterRoutes(api, aiH, tokens)
-	return r, tokens
+	return r, tokens, crypto
 }
 
 func request(r http.Handler, method, path, body, token string) *httptest.ResponseRecorder {
@@ -110,15 +139,34 @@ func assertCode(t *testing.T, w *httptest.ResponseRecorder, expectedCode int) {
 	}
 }
 
+func TestAuthPublicKeyNoAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r, _, _ := newRouterForTest()
+	w := request(r, http.MethodGet, "/api/v1/auth/public-key", "", "")
+	assertCode(t, w, response.CodeOK)
+	var body struct {
+		Data struct {
+			PublicKey string `json:"public_key"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Data.PublicKey == "" {
+		t.Fatal("public key should not be empty")
+	}
+}
+
 func TestAuthRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r, tokens := newRouterForTest()
+	r, tokens, crypto := newRouterForTest()
 	w := request(r, http.MethodGet, "/health", "", "")
 	assertCode(t, w, response.CodeOK)
 
-	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123"}`, "")
+	encPass := encryptPassword(t, crypto, "SecurePass123")
+	w = request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"`+encPass+`"}`, "")
 	assertCode(t, w, response.CodeOK)
-	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"SecurePass123"}`, "")
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"`+encPass+`"}`, "")
 	assertCode(t, w, response.CodeOK)
 	var payload struct {
 		Data struct {
@@ -144,14 +192,24 @@ func TestAuthRoutes(t *testing.T) {
 	assertCode(t, w, response.CodeTokenInvalid)
 }
 
+func TestAuthDecryptFailed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r, _, _ := newRouterForTest()
+	w := request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"not-valid-base64!!!"}`, "")
+	assertCode(t, w, response.CodeDecryptFailed)
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"not-valid-base64!!!"}`, "")
+	assertCode(t, w, response.CodeDecryptFailed)
+}
+
 func TestChangePasswordRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r, _ := newRouterForTest()
+	r, _, crypto := newRouterForTest()
 
-	w := request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"SecurePass123"}`, "")
+	encPass := encryptPassword(t, crypto, "SecurePass123")
+	w := request(r, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"`+encPass+`"}`, "")
 	assertCode(t, w, response.CodeOK)
 
-	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"SecurePass123"}`, "")
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"`+encPass+`"}`, "")
 	assertCode(t, w, response.CodeOK)
 	var payload struct {
 		Data struct {
@@ -163,22 +221,29 @@ func TestChangePasswordRoute(t *testing.T) {
 	}
 	token := payload.Data.Token
 
+	encOld := encryptPassword(t, crypto, "SecurePass123")
+	encNew := encryptPassword(t, crypto, "NewPass456")
 	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
-		`{"old_password":"SecurePass123","new_password":"NewPass456"}`, token)
+		`{"old_password":"`+encOld+`","new_password":"`+encNew+`"}`, token)
 	assertCode(t, w, response.CodeOK)
 
-	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"NewPass456"}`, "")
+	encNew2 := encryptPassword(t, crypto, "NewPass456")
+	w = request(r, http.MethodPost, "/api/v1/auth/login", `{"username":"alice","password":"`+encNew2+`"}`, "")
 	assertCode(t, w, response.CodeOK)
 
+	encOldWrong := encryptPassword(t, crypto, "SecurePass123")
+	encNew3 := encryptPassword(t, crypto, "AnotherPass789")
 	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
-		`{"old_password":"SecurePass123","new_password":"AnotherPass789"}`, token)
+		`{"old_password":"`+encOldWrong+`","new_password":"`+encNew3+`"}`, token)
 	assertCode(t, w, response.CodeAuthFailed)
 
+	encCur := encryptPassword(t, crypto, "NewPass456")
+	encWeak := encryptPassword(t, crypto, "weak")
 	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
-		`{"old_password":"NewPass456","new_password":"weak"}`, token)
+		`{"old_password":"`+encCur+`","new_password":"`+encWeak+`"}`, token)
 	assertCode(t, w, response.CodeValidation)
 
 	w = request(r, http.MethodPost, "/api/v1/auth/password/update",
-		`{"old_password":"NewPass456","new_password":"NewPass456"}`, "")
+		`{"old_password":"`+encCur+`","new_password":"`+encCur+`"}`, "")
 	assertCode(t, w, response.CodeTokenInvalid)
 }

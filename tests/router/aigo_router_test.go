@@ -67,8 +67,8 @@ func newAIGoRouterForTest(mock *aigoMockLLM) (*gin.Engine, *security.TokenManage
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
 	authSvc := auth.NewService(repo, hasher, tokens)
-	authH := auth.NewHandler(authSvc)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
+	authH := auth.NewHandler(authSvc, crypto)
 	aigoSvc := aigo.NewService(newAigoRtSettings(), newMemAIProviders(), newMemAIModels(), crypto, mock, config.DefaultAIConfig{
 		ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-test",
 	}, 30*time.Second)

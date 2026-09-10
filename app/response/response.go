@@ -25,7 +25,7 @@ const (
 	CodeNotFound = 4004
 	// CodeDefaultAIReadOnly 表示默认 AI 配置不可修改或删除。
 	CodeDefaultAIReadOnly = 4005
-	// CodeDecryptFailed 表示 API Key 传输层解密失败。
+	// CodeDecryptFailed 表示传输层 RSA 解密失败。
 	CodeDecryptFailed = 4006
 	// CodeModelInactive 表示激活的模型或产商已禁用。
 	CodeModelInactive = 4007

@@ -122,12 +122,12 @@ func newAIRouterForTest() (*gin.Engine, *security.TokenManager, *security.Crypto
 	hasher := security.PasswordHasher{Time: 1, Memory: 32 * 1024, Threads: 1, KeyLen: 32, SaltLen: 16}
 	tokens := security.NewTokenManager("01234567890123456789012345678901", "test", time.Hour)
 	authSvc := auth.NewService(repo, hasher, tokens)
-	authH := auth.NewHandler(authSvc)
 	crypto, _ := security.NewCryptoManager(validMasterKeyB64AI())
+	authH := auth.NewHandler(authSvc, crypto)
 	aiSvc := ai.NewService(newMemAIProviders(), newMemAIModels(), crypto, config.DefaultAIConfig{
 		ProviderName: "OpenAI", BaseURL: "https://api.openai.com/v1", ModelName: "gpt-4o-mini", APIKey: "sk-default",
 	})
-	aiH := ai.NewHandler(aiSvc, crypto)
+	aiH := ai.NewHandler(aiSvc)
 
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.RequestID())
@@ -137,30 +137,6 @@ func newAIRouterForTest() (*gin.Engine, *security.TokenManager, *security.Crypto
 	auth.RegisterRoutes(api, authH, tokens)
 	ai.RegisterRoutes(api, aiH, tokens)
 	return r, tokens, crypto
-}
-
-func TestAIPublicKeyRequiresAuth(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r, _, _ := newAIRouterForTest()
-	w := request(r, http.MethodGet, "/api/v1/ai/public-key", "", "")
-	assertCode(t, w, response.CodeTokenInvalid)
-}
-
-func TestAIPublicKeySuccess(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r, tokens, _ := newAIRouterForTest()
-	token := generateAITestToken(t, tokens, 1)
-	w := request(r, http.MethodGet, "/api/v1/ai/public-key", "", token)
-	assertCode(t, w, response.CodeOK)
-	var body struct {
-		Data struct {
-			PublicKey string `json:"public_key"`
-		} `json:"data"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &body)
-	if body.Data.PublicKey == "" {
-		t.Fatal("public key should not be empty")
-	}
 }
 
 func TestAIListProvidersIncludesDefault(t *testing.T) {

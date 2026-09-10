@@ -447,4 +447,3 @@ func TestAnalyzeCustomModelDisabled(t *testing.T) {
 	}
 	assertCode(t, err, response.CodeModelInactive)
 }
-

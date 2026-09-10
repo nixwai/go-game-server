@@ -26,12 +26,13 @@ func Wire(d *bootstrap.Deps) *Handler {
 		SaltLen: d.Config.Argon2SaltLen,
 	}
 	svc := NewService(users, hasher, d.Tokens)
-	return NewHandler(svc)
+	return NewHandler(svc, d.Crypto)
 }
 
 // RegisterRoutes 在指定路由组上注册认证路由。
 func RegisterRoutes(rg *gin.RouterGroup, h *Handler, tokens *security.TokenManager) {
 	g := rg.Group("/auth")
+	g.GET("/public-key", ginext.Wrap(h.PublicKey))
 	g.POST("/register", ginext.WrapJSON(h.Register))
 	g.POST("/login", ginext.WrapJSON(h.Login))
 	g.GET("/me", middleware.AuthRequired(tokens), ginext.Wrap(h.Me))

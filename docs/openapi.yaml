@@ -25,7 +25,7 @@ info:
     | 4001 | 资源冲突（如用户名重复）|
     | 4004 | 资源不存在 |
     | 4005 | 默认 AI 配置不可修改或删除 |
-    | 4006 | API Key 传输解密失败 |
+    | 4006 | 传输层 RSA 解密失败 |
     | 4007 | 模型或产商已禁用 |
     | 9000 | 服务器内部错误 |
     | 9001 | 加密主密钥未配置或无效 |
@@ -64,6 +64,30 @@ paths:
                 message: 成功
                 data:
                   status: 正常
+  /api/v1/auth/public-key:
+    get:
+      tags: [auth]
+      summary: 获取 RSA 公钥
+      description: |
+        返回服务端生成的 RSA 公钥（PEM 格式），供前端加密密码使用。
+
+        公钥在服务启动时生成，每次重启后会变化。前端应在注册、登录、修改密码前先获取公钥，
+        使用 RSA-OAEP + SHA-256 加密密码，再 base64 编码后作为 password 字段提交。
+
+        此接口不需要身份认证。
+      operationId: getAuthPublicKey
+      responses:
+        200:
+          description: 公钥获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 0
+                message: 成功
+                data:
+                  public_key: RSA-PEM-PUBLIC-KEY-PLACEHOLDER
   /api/v1/auth/register:
     post:
       tags: [auth]
@@ -74,6 +98,7 @@ paths:
         **安全约束：**
         - 注册接口固定创建 `user` 角色账户，客户端无法通过此接口创建管理员。
         - 密码以 Argon2id 哈希形式存储，明文不落库。
+        - password 字段为前端使用 RSA 公钥加密后 base64 编码的密文，非明文密码。
       operationId: register
       requestBody:
         required: true
@@ -83,7 +108,7 @@ paths:
               $ref: '#/components/schemas/RegisterRequest'
             example:
               username: alice
-              password: Secret123
+              password: <base64-encoded-RSA-ciphertext>
       responses:
         '200':
           description: 注册成功或失败（业务码区分）
@@ -125,6 +150,7 @@ paths:
         **安全约束：**
         - 登录失败统一返回 `用户名或密码错误`，不暴露用户是否存在。
         - 被禁用（disabled）的用户无法登录，错误信息与密码错误一致。
+        - password 字段为前端使用 RSA 公钥加密后 base64 编码的密文，非明文密码。
       operationId: login
       requestBody:
         required: true
@@ -134,7 +160,7 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
             example:
               username: alice
-              password: Secret123
+              password: <base64-encoded-RSA-ciphertext>
       responses:
         '200':
           description: 登录成功或失败（业务码区分）
@@ -223,6 +249,7 @@ paths:
       description: |
         已登录用户修改自己的密码。
         请求需要携带有效的 JWT，服务端会校验旧密码后更新为新密码。
+        - old_password 和 new_password 字段均为前端使用 RSA 公钥加密后 base64 编码的密文，非明文密码。
       operationId: changePassword
       security:
         - bearerAuth: []
@@ -233,8 +260,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ChangePasswordRequest'
             example:
-              old_password: Secret123
-              new_password: NewSecret456
+              old_password: <base64-encoded-RSA-ciphertext>
+              new_password: <base64-encoded-RSA-ciphertext>
       responses:
         '200':
           description: 修改成功或业务错误（业务码区分）
@@ -317,33 +344,6 @@ paths:
                     code: 3001
                     message: 权限不足
                     data: null
-  /api/v1/ai/public-key:
-    get:
-      tags: [ai]
-      summary: 获取 RSA 公钥
-      description: |
-        返回服务端启动时生成的 RSA-2048 公钥（PEM 格式）。
-
-        前端使用该公钥对 API Key 明文做 RSA-OAEP 加密后，以 base64 编码形式提交到新增或更新产商接口。
-
-        **安全约束：**
-        - 公钥在服务重启后会变更，前端每次使用前应重新获取。
-        - 私钥仅存在于服务端内存中。
-      operationId: getPublicKey
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: 成功返回公钥
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-              example:
-                code: 0
-                message: 成功
-                data:
-                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBg...\n-----END PUBLIC KEY-----"
   /api/v1/ai/providers/list:
     get:
       tags: [ai]
