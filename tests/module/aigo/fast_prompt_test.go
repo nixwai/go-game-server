@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	aigo "github.com/nixwai/go-game-server/app/module/aigo"
+	"github.com/nixwai/go-game-server/app/module/aigo/dto"
 )
 
 type promptCaptureClient struct {
@@ -20,8 +21,10 @@ func (c *promptCaptureClient) ChatCompletion(_ context.Context, req aigo.ChatReq
 func TestAnalyzeUsesFastIntuitiveLLMSettings(t *testing.T) {
 	client := &promptCaptureClient{}
 	svc := newTestService(newMemProviders(), newMemModels(), newMemoryGameSettings(), client)
+	snapshot := simpleSnapshot()
+	snapshot.Layout = dto.GoLayout{{0, 0, 0}, {0, 0, 0}, {0, 1, 0}}
 
-	if _, err := svc.Analyze(context.Background(), 1, simpleSnapshot()); err != nil {
+	if _, err := svc.Analyze(context.Background(), 1, snapshot); err != nil {
 		t.Fatalf("Analyze: %v", err)
 	}
 	if len(client.request.Messages) != 2 {
@@ -38,5 +41,14 @@ func TestAnalyzeUsesFastIntuitiveLLMSettings(t *testing.T) {
 		if !strings.Contains(systemPrompt, phrase) {
 			t.Fatalf("system prompt missing %q: %s", phrase, systemPrompt)
 		}
+	}
+	userPrompt := client.request.Messages[1].Content
+	for _, phrase := range []string{"[x,y]", "layout[y][x]", "[1,2] means layout[2][1]", "Each row represents y", "left to right represent x"} {
+		if !strings.Contains(userPrompt, phrase) {
+			t.Fatalf("user prompt missing %q: %s", phrase, userPrompt)
+		}
+	}
+	if !strings.Contains(userPrompt, "2: .X.") {
+		t.Fatalf("expected layout[2][1] to be rendered at x=1, y=2: %s", userPrompt)
 	}
 }

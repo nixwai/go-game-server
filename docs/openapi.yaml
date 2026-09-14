@@ -727,6 +727,8 @@ paths:
       description: |
         接收当前棋局快照，调用激活的 AI 模型分析后返回下一步落子坐标或结束申请。
 
+        坐标统一使用 [x,y] 格式：x 表示从左到右的列，y 表示从上到下的行；layout[y][x] 表示坐标 [x,y] 的棋子。例如 [1,2] 对应 layout[2][1]，不对应 layout[1][2]。latestVertex、ko.vertex 和响应中的 vertex 均遵循此约定。
+
         当 allow_ai_end_game 为 true 时，AI 可返回 {"action":"end_game"} 表示申请数子结束游戏；
         为 false 时，AI 必须始终返回落子坐标。
       operationId: analyzeGoGame
@@ -1095,7 +1097,7 @@ components:
           example: 19
         layout:
           type: array
-          description: 棋盘布局，1=黑子，-1=白子，0=空位
+          description: 棋盘布局，1=黑子，-1=白子，0=无子；layout[y][x] 表示坐标 [x,y] 的棋子，例如 [1,2] 对应 layout[2][1]
           items:
             type: array
             items:
@@ -1115,7 +1117,7 @@ components:
             type: integer
           minItems: 2
           maxItems: 2
-          description: 最新一手棋子的棋盘坐标
+          description: 最新一手棋子的棋盘坐标，格式为 [x,y]；[1,2] 对应 layout[2][1]
           example: [1, 1]
     KoInfo:
       type: object
@@ -1132,7 +1134,7 @@ components:
             type: integer
           minItems: 2
           maxItems: 2
-          description: 劫子发生时的顶点
+          description: 劫子发生时的顶点，格式为 [x,y]；[1,2] 对应 layout[2][1]
           example: [3, 3]
     UpdateGameSettingRequest:
       type: object
@@ -1186,6 +1188,6 @@ components:
             type: integer
           minItems: 2
           maxItems: 2
-          description: 落子坐标，仅当 action 为 move 时存在
+          description: "[x,y] 格式的落子坐标，仅当 action 为 move 时存在；[1,2] 对应 layout[2][1]"
           example: [5, 5]
 

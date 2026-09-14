@@ -3,10 +3,10 @@ package dto
 // GoSign 表示棋盘上的棋子标记：1 为黑子，-1 为白子，0 为空位。
 type GoSign int8
 
-// GoLayout 是围棋棋盘的二维布局数据。
+// GoLayout 是围棋棋盘的二维布局数据，使用 layout[y][x] 表示坐标 [x,y]。
 type GoLayout [][]GoSign
 
-// GoVertex 是围棋棋盘的坐标，格式为 [row, col]。
+// GoVertex 是围棋棋盘的坐标，格式为 [x,y]，其中 x 为列、y 为行。
 type GoVertex [2]int
 
 // PlayerSign 是可落子的棋子标记，不包含空位标记 0。
@@ -16,7 +16,7 @@ type PlayerSign GoSign
 type KoInfo struct {
 	// Sign 是劫子发生的棋子标记。
 	Sign GoSign `json:"sign"`
-	// Vertex 是劫子发生时的顶点。
+	// Vertex 是劫子发生时的顶点，格式为 [x,y]。
 	Vertex GoVertex `json:"vertex"`
 }
 
@@ -38,6 +38,6 @@ type AnalyzeRequest struct {
 	Player PlayerSign `json:"player" binding:"required"`
 	// Ko 是劫子信息，无劫时省略。
 	Ko *KoInfo `json:"ko,omitempty"`
-	// LatestVertex 是最新一手棋子的棋盘坐标。
+	// LatestVertex 是最新一手棋子的棋盘坐标，格式为 [x,y]。
 	LatestVertex *GoVertex `json:"latestVertex,omitempty"`
 }

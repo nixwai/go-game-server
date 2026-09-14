@@ -18,6 +18,6 @@ type GameSettingResponse struct {
 type AnalyzeResponse struct {
 	// Action 是 AI 决定的动作：move 或 end_game。
 	Action string `json:"action"`
-	// Vertex 是落子坐标，仅当 Action 为 move 时存在。
+	// Vertex 是 [x,y] 格式的落子坐标，仅当 Action 为 move 时存在。
 	Vertex *GoVertex `json:"vertex,omitempty"`
 }
