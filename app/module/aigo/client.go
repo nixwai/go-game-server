@@ -21,7 +21,11 @@ type ChatRequest struct {
 	APIKey   string
 	Model    string
 	Messages []ChatMessage
-	Timeout  time.Duration
+	// MaxTokens 限制单次落子的补全长度。
+	MaxTokens int
+	// DisableThinking 请求兼容产商关闭隐藏思考，直接返回结果。
+	DisableThinking bool
+	Timeout         time.Duration
 }
 
 // LLMClient 定义与 LLM 交互的抽象接口。
@@ -40,8 +44,14 @@ func NewHTTPLLMClient() *HTTPLLMClient {
 }
 
 type chatCompletionRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
+	Model     string          `json:"model"`
+	Messages  []ChatMessage   `json:"messages"`
+	MaxTokens int             `json:"max_tokens,omitempty"`
+	Thinking  *thinkingConfig `json:"thinking,omitempty"`
+}
+
+type thinkingConfig struct {
+	Type string `json:"type"`
 }
 
 type chatCompletionResponse struct {
@@ -55,8 +65,12 @@ type chatCompletionResponse struct {
 // ChatCompletion 向 OpenAI 兼容端点发送请求并返回文本内容。
 func (c *HTTPLLMClient) ChatCompletion(ctx context.Context, req ChatRequest) (string, error) {
 	body := chatCompletionRequest{
-		Model:    req.Model,
-		Messages: req.Messages,
+		Model:     req.Model,
+		Messages:  req.Messages,
+		MaxTokens: req.MaxTokens,
+	}
+	if req.DisableThinking {
+		body.Thinking = &thinkingConfig{Type: "disabled"}
 	}
 	jsonBody, err := json.Marshal(body)
 	if err != nil {

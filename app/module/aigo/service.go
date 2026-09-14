@@ -104,9 +104,11 @@ func (s *Service) Analyze(ctx context.Context, userID uint64, req dto.AnalyzeReq
 	}
 
 	chatReq := ChatRequest{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
-		Model:   modelName,
+		BaseURL:         baseURL,
+		APIKey:          apiKey,
+		Model:           modelName,
+		MaxTokens:       64,
+		DisableThinking: true,
 		Messages: []ChatMessage{
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: userPrompt},

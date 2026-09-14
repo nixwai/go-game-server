@@ -13,6 +13,8 @@ import (
 
 const shutdownTimeout = 10 * time.Second
 
+const httpWriteTimeoutPadding = 5 * time.Second
+
 // HTTPServer 定义 HTTP 服务生命周期所需的最小接口，便于隔离启动与关闭逻辑。
 type HTTPServer interface {
 	ListenAndServe() error
@@ -32,7 +34,7 @@ func New(cfg config.Config, handler http.Handler) *Application {
 			Handler:           handler,
 			ReadHeaderTimeout: 5 * time.Second,
 			ReadTimeout:       10 * time.Second,
-			WriteTimeout:      15 * time.Second,
+			WriteTimeout:      cfg.GoLLMTimeout + httpWriteTimeoutPadding,
 			IdleTimeout:       60 * time.Second,
 		},
 	}

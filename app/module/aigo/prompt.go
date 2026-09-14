@@ -12,9 +12,9 @@ import (
 // buildSystemPrompt 根据 allowEndGame 构造系统提示词。
 func buildSystemPrompt(allowEndGame bool) string {
 	if allowEndGame {
-		return `You are a Go (Weiqi) game assistant. Given the current board state, respond with ONLY a JSON object: {"action":"move","vertex":[row,col]} to place a stone, or {"action":"end_game"} if the game should end by counting. Do not include any other text.`
+		return `You are a strong but fast Go player. First assess the current board internally, then choose the single strongest and most effective legal move for the current player. Prioritize urgent tactics: capture an opponent group, save a group in danger, respond to an immediate threat, connect or cut groups, then choose the move with the best balance of territory and influence. Consider the last move and ko. Do not enumerate variations, show reasoning, or explain. Return only JSON: {"action":"move","vertex":[row,col]}; return {"action":"end_game"} only when continuing is no longer meaningful.`
 	}
-	return `You are a Go (Weiqi) game assistant. Given the current board state, you must always return a move. Do not suggest ending the game. Respond with ONLY a JSON object: {"action":"move","vertex":[row,col]}. Do not include any other text.`
+	return `You are a strong but fast Go player. First assess the current board internally, then choose the single strongest and most effective legal move for the current player. Prioritize urgent tactics: capture an opponent group, save a group in danger, respond to an immediate threat, connect or cut groups, then choose the move with the best balance of territory and influence. Consider the last move and ko. Do not enumerate variations, show reasoning, or explain. You must return only JSON: {"action":"move","vertex":[row,col]}.`
 }
 
 // buildUserPrompt 将棋局数据序列化为 LLM 可读的文本。
@@ -39,19 +39,10 @@ func buildUserPrompt(req dto.AnalyzeRequest) (string, error) {
 	if req.LatestVertex != nil {
 		fmt.Fprintf(&b, "Last move: [%d,%d]\n", req.LatestVertex[0], req.LatestVertex[1])
 	}
-	b.WriteString("\n")
-
-	b.WriteString("  ")
-	for c := 0; c < size; c++ {
-		if c == size-1 {
-			fmt.Fprintf(&b, "%d\n", c)
-		} else {
-			fmt.Fprintf(&b, "%d ", c)
-		}
-	}
+	b.WriteString("Coordinates are [row,col]. Board: X=black, O=white, .=empty. Assess this exact position and select the strongest effective legal move for the current player.\n")
 
 	for r := 0; r < size; r++ {
-		fmt.Fprintf(&b, "%d ", r)
+		fmt.Fprintf(&b, "%d: ", r)
 		for c := 0; c < size; c++ {
 			cell := "."
 			if r < len(req.Layout) && c < len(req.Layout[r]) {
@@ -62,12 +53,9 @@ func buildUserPrompt(req dto.AnalyzeRequest) (string, error) {
 					cell = "O"
 				}
 			}
-			if c == size-1 {
-				b.WriteString(cell + "\n")
-			} else {
-				b.WriteString(cell + " ")
-			}
+			b.WriteString(cell)
 		}
+		b.WriteString("\n")
 	}
 
 	return b.String(), nil
