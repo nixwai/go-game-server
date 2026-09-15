@@ -36,7 +36,7 @@ func (h *Handler) ListProviders(c *gin.Context) ([]dto.ProviderResponse, error) 
 	defaultProvider := model.AIProvider{
 		ID:           model.DefaultAIProviderID,
 		ProviderName: defaultAI.ProviderName,
-		BaseURL:      defaultAI.BaseURL,
+		BaseURL:      "***********",
 		Status:       model.StatusActive,
 	}
 	defaultModel := model.AIModel{
