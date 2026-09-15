@@ -1,0 +1,36 @@
+[Unit]
+Description=Go Game Server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=go-game
+Group=go-game
+WorkingDirectory=/opt/go-game-server
+Environment=GIN_MODE=release
+
+ExecStartPre=/usr/bin/test -r /opt/go-game-server/.env
+ExecStartPre=/usr/bin/test -x /opt/go-game-server/bin/server
+ExecStartPre=/usr/bin/test -r /opt/go-game-server/docs/openapi.yaml
+ExecStart=/opt/go-game-server/bin/server
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+UMask=0027
+LimitNOFILE=65536
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=go-game-server
+
+[Install]
+WantedBy=multi-user.target
