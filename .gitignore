@@ -13,3 +13,4 @@ tmp/
 # Temporary files
 *.tmp
 data/
+release/

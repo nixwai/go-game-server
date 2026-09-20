@@ -101,6 +101,17 @@ go run ./cmd/server
 
 收到 `SIGINT` / `SIGTERM` 信号后执行优雅停机，超时 10 秒。
 
+### 7. 项目打包
+
+```bash
+go build -o go-game-server
+```
+
+打包linux环境二进制包：
+```bash
+powershell -ExecutionPolicy Bypass -File .\scripts\build-linux.ps1 -Architecture amd64
+```
+
 ## 项目结构
 
 ```text
@@ -121,7 +132,7 @@ app/
   security/     Argon2id 密码哈希、JWT 签发与校验、AES 加解密
 migrations/     版本化 SQL 迁移文件
 docs/           OpenAPI 3.0 接口契约文档
-scripts/        辅助脚本（管理员初始化 SQL 模板）
+scripts/        辅助脚本（管理员初始化 SQL 模板、Linux 打包脚本）
 tests/          测试代码（不在 app/cmd 中放置 _test.go）
 Dockerfile
 docker-compose.yml
@@ -138,6 +149,14 @@ AGENTS.md
 | `go run ./cmd/migrate up` | 执行数据库迁移 |
 | `go run ./cmd/migrate down` | 回滚最近一次迁移 |
 | `go run ./cmd/admin-init` | 交互式创建首个管理员 |
+
+## Windows 构建 Linux 二进制
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-linux.ps1 -Architecture amd64
+```
+
+可选 `arm64`。产物输出到 `release/bin`，包含 `server`、`migrate` 和 `admin-init`。
 
 ## 配置说明
 
