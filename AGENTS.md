@@ -37,7 +37,9 @@ app/
 migrations/     版本化 SQL 迁移
 docs/           OpenAPI 文档
 tests/          按 module、router、config、security、response、bootstrap 划分的测试与集成测试
+Dockerfile
 docker-compose.yml
+.dockerignore
 .env.example
 AGENTS.md
 ```
@@ -111,6 +113,15 @@ Authorization: Bearer <jwt>
 
 - `MYSQL_DSN`：GORM 使用的 MySQL DSN；
 - `MYSQL_MIGRATE_URL`：golang-migrate 使用的 MySQL URL；
+$anchor
+- `MYSQL_USER`：Docker Compose 初始化应用数据库用户；
+$anchor
+- `MYSQL_ROOT_PASSWORD`：MySQL root 密码，仅用于数据库管理；
+$anchor
+$anchor
+- `MYSQL_IMAGE`：MySQL 镜像及版本，示例配置默认 `mysql:8.4`；使用已有数据目录时必须指定兼容版本；
+- `HTTP_PORT`：HTTP 服务映射到宿主机的端口；
+- `TZ`：容器时区；
 - `JWT_SECRET`：至少 32 字节的高熵密钥；
 - `JWT_EXPIRES_IN`：JWT 有效期；
 - `ARGON2_*`：Argon2id 参数。
@@ -138,6 +149,14 @@ go run ./cmd/migrate down
 docker compose up -d mysql
 ```
 
+本地启动完整 Docker Compose 环境：
+
+```bash
+docker compose up --build -d
+```
+
+Compose 会等待 MySQL 健康检查通过，执行一次 `migrate` 服务完成数据库迁移，然后启动 `app` 服务。HTTP 服务自身不执行数据库迁移。
+
 初始化首个管理员：
 
 ```bash
@@ -157,7 +176,8 @@ go run ./cmd/admin-init
 - 密码、密码哈希、JWT、数据库连接串不得写入日志；
 - 错误响应不得暴露内部堆栈；
 - 所有外部输入必须在服务边界校验；
-- 生产部署必须使用 HTTPS，并在网关层补充限流和安全响应头。
+- 生产部署必须使用 HTTPS，并在网关层补充限流和安全响应头；
+- `Dockerfile` 和 `docker-compose.yml` 不得包含真实密码、密钥或连接串，容器配置统一从 `.env` 注入。
 
 ## 9. 分层与复用规范
 
@@ -226,7 +246,7 @@ go test ./...
 go test -cover ./...
 ```
 
-目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/module/auth`、`tests/module/ai`、`tests/router`、`tests/config`、`tests/security`、`tests/response`、`tests/bootstrap`；涉及数据库行为的集成测试放在 `tests` 根目录并使用 `mysql-test` 容器，不得依赖开发数据库。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
+目标测试覆盖率不低于 80%。所有测试文件统一放在 `tests` 目录，不在 `app`、`cmd` 业务代码目录中放置 `*_test.go`。单元测试按组件划分为 `tests/module/auth`、`tests/module/ai`、`tests/router`、`tests/config`、`tests/security`、`tests/response`、`tests/bootstrap`；涉及数据库行为的集成测试放在 `tests` 根目录并使用独立测试数据库，不得依赖开发数据库或开发 Compose 服务。设置 `MYSQL_TEST_DSN` 后执行 `go test -tags=integration ./tests`。
 
 ## 12. 新功能开发流程
 

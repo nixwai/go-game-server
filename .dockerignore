@@ -1,15 +1,16 @@
+.git
+.gitignore
 .env
 .env.*
 !.env.example
+.idea
+.vscode
+bin
+release
+tmp
 *.exe
 *.test
 coverage.out
 coverage.html
-bin/
-tmp/
-.vscode/
-.idea/
-
-# Temporary files
 *.tmp
 data/

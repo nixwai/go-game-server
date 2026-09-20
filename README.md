@@ -42,25 +42,31 @@ cp .env.example .env
 
 - `MYSQL_DSN` — GORM 数据源名称
 - `MYSQL_MIGRATE_URL` — golang-migrate 连接 URL
+- `MYSQL_USER` — 应用数据库用户名
+- `MYSQL_IMAGE` — MySQL 镜像及版本，必须与已有数据目录兼容
 - `JWT_SECRET` — 至少 32 字节的高熵随机密钥
 - `MASTER_KEY` — AES-256-GCM 主密钥（base64 编码的 32 字节随机值）
 - `DEFAULT_AI_API_KEY` — 默认 AI 产商的 API Key
 
 > ⚠️ 禁止将真实密钥、密码或连接串提交到代码仓库。`.env` 已在 `.gitignore` 中忽略。
 
-### 3. 启动 MySQL
+### 3. 启动 Docker Compose 服务
+
+```bash
+docker compose up --build -d
+```
+
+Compose 会先启动 MySQL，等待健康检查通过，再执行一次性数据库迁移，迁移成功后启动项目服务。MySQL、迁移任务和项目服务均从 `.env` 读取配置。
+
+仅启动数据库：
 
 ```bash
 docker compose up -d mysql
 ```
 
-测试数据库（端口 3307）可按需启动：
-
-```bash
-docker compose up -d mysql-test
-```
-
 ### 4. 执行数据库迁移
+
+`docker compose up --build -d` 会自动执行 `migrate up`。仅使用数据库容器时，可在宿主机执行：
 
 ```bash
 go run ./cmd/migrate up
@@ -69,7 +75,7 @@ go run ./cmd/migrate up
 回滚最近一次迁移：
 
 ```bash
-go run ./cmd/migrate down
+docker compose run --rm migrate down
 ```
 
 ### 5. 初始化首个管理员
@@ -82,9 +88,12 @@ go run ./cmd/admin-init
 
 > 也可以使用 `scripts/init_admin.sql.example` SQL 模板手动初始化，使用前必须替换占位符，禁止提交替换后的文件。
 
-### 6. 启动 HTTP 服务
+### 6. 本地直接启动 HTTP 服务（可选）
+
+完整 Compose 已启动 `app` 时无需重复执行。仅使用数据库容器时：
 
 ```bash
+docker compose up -d mysql
 go run ./cmd/server
 ```
 
@@ -114,7 +123,9 @@ migrations/     版本化 SQL 迁移文件
 docs/           OpenAPI 3.0 接口契约文档
 scripts/        辅助脚本（管理员初始化 SQL 模板）
 tests/          测试代码（不在 app/cmd 中放置 _test.go）
+Dockerfile
 docker-compose.yml
+.dockerignore
 .env.example
 AGENTS.md
 ```
@@ -247,10 +258,10 @@ go test ./...
 
 ### 集成测试
 
-集成测试使用 `mysql-test` 容器（端口 3307），不依赖开发数据库：
+集成测试使用独立测试数据库，不依赖开发数据库，开发 Compose 不提供测试库。通过 `.env` 之外的进程环境注入测试连接串：
 
 ```bash
-export MYSQL_TEST_DSN="go_game_test:go_game_test@tcp(127.0.0.1:3307)/go_game_test?charset=utf8mb4&parseTime=True&loc=Local"
+export MYSQL_TEST_DSN="<test-user>:<test-password>@tcp(<test-host>:3306)/<test-database>?charset=utf8mb4&parseTime=True&loc=Local"
 go test -tags=integration ./tests
 ```
 
@@ -287,12 +298,13 @@ go test -cover ./...
 
 ## Docker Compose 服务
 
-| 服务 | 端口 | 用途 |
-|------|------|------|
-| `mysql` | 3306 | 开发数据库 |
-| `mysql-test` | 3307 | 集成测试数据库 |
+| 服务 | 宿主机端口 | 用途 |
+|------|------------|------|
+| `mysql` | `${MYSQL_PORT}` | 开发数据库 |
+| `migrate` | 无 | 一次性执行数据库迁移 |
+| `app` | `${HTTP_PORT}` | HTTP 服务 |
 
-数据卷：`mysql_data`、`mysql_test_data`
+默认使用命名卷 `mysql_data`；设置 `MYSQL_DATA_PATH=./data/mysql` 后改用宿主机目录挂载。`data/` 已从 Git 和镜像构建上下文排除。默认数据库镜像为 `mysql:8.4` LTS；已有数据目录必须通过 `MYSQL_IMAGE` 指定兼容版本。镜像按目标 CPU 架构构建，支持 AMD64 和 ARM64。敏感配置统一从 `.env` 注入，不写入 `Dockerfile` 或 `docker-compose.yml`。
 
 ## 开发流程
 
