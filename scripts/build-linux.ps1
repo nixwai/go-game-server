@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$binDir = Join-Path $repoRoot 'release\bin'
+$binDir = Join-Path $repoRoot 'bin'
 
 New-Item -ItemType Directory -Path $binDir -Force | Out-Null
 

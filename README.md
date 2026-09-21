@@ -40,13 +40,16 @@ cp .env.example .env
 
 编辑 `.env`，替换以下关键配置为本地实际值：
 
-- `MYSQL_DSN` — GORM 数据源名称
-- `MYSQL_MIGRATE_URL` — golang-migrate 连接 URL
-- `MYSQL_USER` — 应用数据库用户名
+- `MYSQL_DATABASE`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_ROOT_PASSWORD` — Docker Compose 初始化数据库所需配置
 - `MYSQL_IMAGE` — MySQL 镜像及版本，必须与已有数据目录兼容
+- `MYSQL_PORT`、`HTTP_PORT` — 宿主机端口映射
+- `MYSQL_DSN` — 宿主机直接运行服务时使用的 GORM 数据源名称
+- `MYSQL_MIGRATE_URL` — 宿主机直接运行迁移命令时使用的 golang-migrate 连接 URL
 - `JWT_SECRET` — 至少 32 字节的高熵随机密钥
 - `MASTER_KEY` — AES-256-GCM 主密钥（base64 编码的 32 字节随机值）
 - `DEFAULT_AI_API_KEY` — 默认 AI 产商的 API Key
+
+使用 Docker Compose 时，`app` 和 `migrate` 服务会根据 `MYSQL_DATABASE`、`MYSQL_USER` 和 `MYSQL_PASSWORD` 自动生成容器内连接配置，覆盖 `.env` 中的 `MYSQL_DSN` 和 `MYSQL_MIGRATE_URL`。直接在宿主机运行 `go run ./cmd/server` 或 `go run ./cmd/migrate` 时，才使用这两个连接配置。
 
 > ⚠️ 禁止将真实密钥、密码或连接串提交到代码仓库。`.env` 已在 `.gitignore` 中忽略。
 
@@ -56,7 +59,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Compose 会先启动 MySQL，等待健康检查通过，再执行一次性数据库迁移，迁移成功后启动项目服务。MySQL、迁移任务和项目服务均从 `.env` 读取配置。
+Compose 会先启动 MySQL，等待健康检查通过，再执行一次性数据库迁移，迁移成功后启动项目服务。Compose 使用 `.env` 中的变量进行配置替换；`app` 服务加载 `.env`，`migrate` 服务使用 Compose 根据数据库配置生成的连接 URL。
 
 仅启动数据库：
 
@@ -101,17 +104,6 @@ go run ./cmd/server
 
 收到 `SIGINT` / `SIGTERM` 信号后执行优雅停机，超时 10 秒。
 
-### 7. 项目打包
-
-```bash
-go build -o go-game-server
-```
-
-打包linux环境二进制包：
-```bash
-powershell -ExecutionPolicy Bypass -File .\scripts\build-linux.ps1 -Architecture amd64
-```
-
 ## 项目结构
 
 ```text
@@ -133,6 +125,7 @@ app/
 migrations/     版本化 SQL 迁移文件
 docs/           OpenAPI 3.0 接口契约文档
 scripts/        辅助脚本（管理员初始化 SQL 模板、Linux 打包脚本）
+deploy/         部署配置（systemd 服务文件）
 tests/          测试代码（不在 app/cmd 中放置 _test.go）
 Dockerfile
 docker-compose.yml
@@ -149,14 +142,6 @@ AGENTS.md
 | `go run ./cmd/migrate up` | 执行数据库迁移 |
 | `go run ./cmd/migrate down` | 回滚最近一次迁移 |
 | `go run ./cmd/admin-init` | 交互式创建首个管理员 |
-
-## Windows 构建 Linux 二进制
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-linux.ps1 -Architecture amd64
-```
-
-可选 `arm64`。产物输出到 `release/bin`，包含 `server`、`migrate` 和 `admin-init`。
 
 ## 配置说明
 
@@ -277,10 +262,19 @@ go test ./...
 
 ### 集成测试
 
-集成测试使用独立测试数据库，不依赖开发数据库，开发 Compose 不提供测试库。通过 `.env` 之外的进程环境注入测试连接串：
+集成测试使用独立测试数据库，不依赖开发数据库，开发 Compose 不提供测试库。通过 `.env` 之外的进程环境注入测试连接串。
+
+Unix shell：
 
 ```bash
 export MYSQL_TEST_DSN="<test-user>:<test-password>@tcp(<test-host>:3306)/<test-database>?charset=utf8mb4&parseTime=True&loc=Local"
+go test -tags=integration ./tests
+```
+
+Windows PowerShell：
+
+```powershell
+$env:MYSQL_TEST_DSN = "<test-user>:<test-password>@tcp(<test-host>:3306)/<test-database>?charset=utf8mb4&parseTime=True&loc=Local"
 go test -tags=integration ./tests
 ```
 
@@ -315,7 +309,7 @@ go test -cover ./...
 - 所有外部输入在 Service 边界校验
 - 生产环境必须使用 HTTPS，并在网关层补充限流和安全响应头
 
-## Docker Compose 服务
+## Docker Compose 服务部署
 
 | 服务 | 宿主机端口 | 用途 |
 |------|------------|------|
@@ -324,6 +318,175 @@ go test -cover ./...
 | `app` | `${HTTP_PORT}` | HTTP 服务 |
 
 默认使用命名卷 `mysql_data`；设置 `MYSQL_DATA_PATH=./data/mysql` 后改用宿主机目录挂载。`data/` 已从 Git 和镜像构建上下文排除。默认数据库镜像为 `mysql:8.4` LTS；已有数据目录必须通过 `MYSQL_IMAGE` 指定兼容版本。镜像按目标 CPU 架构构建，支持 AMD64 和 ARM64。敏感配置统一从 `.env` 注入，不写入 `Dockerfile` 或 `docker-compose.yml`。
+
+### 创建启动
+
+```bash
+docker compose up --build -d
+```
+
+### 暂时停止
+
+```bash
+docker compose stop
+```
+
+### 重新启动
+
+```bash
+docker compose start
+```
+
+### 停止并删除容器
+
+```bash
+docker compose down
+```
+
+该命令不会删除默认的 `mysql_data` 数据卷。如需同时删除数据库数据，执行 `docker compose down -v`。
+
+## systemd 服务部署（Linux）
+
+systemd 部署适用于将 HTTP 服务作为 Linux 系统服务运行。该方式只管理 `server` 进程，MySQL 必须由独立的数据库服务提供，不能与 Compose 的 `app` 服务同时占用同一个 `HTTP_PORT`。
+
+### 部署目录要求
+
+```bash
+cd /opt/go-game-server
+```
+
+`deploy/systemd/go-game-server.service` 默认使用以下目录和文件：
+
+```text
+/opt/go-game-server/
+├── .env
+├── bin/server
+├── bin/migrate
+├── bin/admin-init
+├── docs/openapi.yaml
+└── migrations/
+```
+
+`.env` 必须包含宿主机运行服务所需的 `MYSQL_DSN`、`JWT_SECRET`、`MASTER_KEY` 等配置。服务以 `go-game` 用户运行，部署前需要确保该用户可以读取部署目录。
+
+### 首次部署
+
+#### 1. 准备环境配置
+
+如果项目中还没有 `.env`，从示例文件创建并填写实际配置：
+
+```bash
+sudo cp .env.example .env
+sudo vi .env
+```
+
+> `.env` 包含数据库连接串、JWT 密钥等敏感配置，禁止提交到代码仓库或公开传播。
+
+#### 2. 构建 Linux 二进制文件
+
+在服务器上执行以下命令，产物会直接生成到项目的 `bin` 目录：
+
+```bash
+go build -trimpath -ldflags "-s -w" -o ./bin/server ./cmd/server
+go build -trimpath -ldflags "-s -w" -o ./bin/migrate ./cmd/migrate
+go build -trimpath -ldflags "-s -w" -o ./bin/admin-init ./cmd/admin-init
+```
+
+Windows 构建 Linux 二进制：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-linux.ps1 -Architecture amd64
+```
+
+可选 `arm64`。构建产物需要放入服务器项目目录的 `bin` 目录。
+
+如果使用已经包含 Linux 二进制文件的发布包，可以跳过构建步骤，但必须确认 `bin/server`、`bin/migrate` 和 `bin/admin-init` 已存在且适用于服务器 CPU 架构。
+
+#### 3. 创建 systemd 运行用户
+
+使用独立的系统用户运行服务，避免服务直接使用 `root` 权限。`/usr/sbin/nologin` 禁止该用户用于交互式登录。
+
+```bash
+sudo useradd --system --home-dir /opt/go-game-server --shell /usr/sbin/nologin go-game
+```
+
+如果 `go-game` 用户已经存在，跳过此命令。
+
+#### 4. 设置目录所有者和文件权限
+
+让 `go-game` 用户拥有项目目录，确保 systemd 启动的服务能够读取配置、二进制文件、接口文档和数据库迁移文件。
+
+```bash
+sudo chown -R go-game:go-game /opt/go-game-server
+sudo chmod 600 /opt/go-game-server/.env
+sudo chmod 755 /opt/go-game-server/bin/server /opt/go-game-server/bin/migrate /opt/go-game-server/bin/admin-init
+```
+
+#### 5. 安装 systemd 服务配置
+
+将项目中的服务配置安装到 systemd 的系统级服务目录。该配置定义服务用户、工作目录、启动命令、自动重启和日志输出方式。
+
+```bash
+sudo cp /opt/go-game-server/deploy/systemd/go-game-server.service /etc/systemd/system/
+```
+
+#### 6. 重新加载 systemd 配置
+
+通知 systemd 重新读取刚刚安装的服务配置。新增或修改 `.service` 文件后都需要执行。
+
+```bash
+sudo systemctl daemon-reload
+```
+
+#### 7. 执行数据库迁移
+
+使用 `go-game` 用户执行数据库迁移，避免迁移产生由 `root` 所有的文件。
+
+```bash
+sudo -u go-game ./bin/migrate up
+```
+
+#### 8. 启动并设置开机自启
+
+```bash
+sudo systemctl enable --now go-game-server
+sudo systemctl status go-game-server
+```
+
+### 服务管理
+
+```bash
+# 查看实时日志
+sudo journalctl -u go-game-server -f
+
+# 重启服务
+sudo systemctl restart go-game-server
+
+# 停止服务
+sudo systemctl stop go-game-server
+
+# 禁止开机自动启动
+sudo systemctl disable go-game-server
+```
+
+### 发布新版本
+
+在项目根目录重新构建并替换二进制文件后，重启服务：
+
+```bash
+sudo install -o go-game -g go-game -m 755 ./bin/server /opt/go-game-server/bin/server
+sudo cp docs/openapi.yaml /opt/go-game-server/docs/openapi.yaml
+sudo chown go-game:go-game /opt/go-game-server/docs/openapi.yaml
+sudo systemctl restart go-game-server
+```
+
+如迁移文件发生变化，先同步 `migrations` 目录和 `migrate` 二进制，再执行：
+
+```bash
+sudo -u go-game ./bin/migrate up
+```
+
+> systemd 服务和 Compose 的 `app` 服务是两种互斥的 HTTP 服务运行方式。使用 systemd 时可通过 `docker compose up -d mysql` 仅启动数据库，但不要同时启动 Compose 的 `app` 服务。
 
 ## 开发流程
 
